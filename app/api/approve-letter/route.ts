@@ -264,9 +264,9 @@ export async function POST(request: NextRequest) {
 
     // --- RENDER TO ADDRESS ---
     page.drawText('To,', { x: margin, y: headerBottomY - 50, size: 11, font: helveticaBold, color: blackColor });
-    page.drawText(letter.hod.full_name, { x: margin, y: headerBottomY - 65, size: 11, font: helvetica, color: blackColor });
-    page.drawText(letter.hod.designation, { x: margin, y: headerBottomY - 80, size: 10, font: helvetica, color: grayColor });
-    page.drawText(`Department of ${letter.student.departments?.name || 'AI&ML'}`, { x: margin, y: headerBottomY - 95, size: 10, font: helvetica, color: grayColor });
+    page.drawText(letter.hod?.full_name || 'The Head of the Department', { x: margin, y: headerBottomY - 65, size: 11, font: helvetica, color: blackColor });
+    page.drawText(letter.hod?.designation || 'Head of the Department', { x: margin, y: headerBottomY - 80, size: 10, font: helvetica, color: grayColor });
+    page.drawText(`Department of ${letter.student?.departments?.name || 'AI&ML'}`, { x: margin, y: headerBottomY - 95, size: 10, font: helvetica, color: grayColor });
     page.drawText('AITS, Tirupati.', { x: margin, y: headerBottomY - 110, size: 10, font: helvetica, color: grayColor });
 
     // --- RENDER FROM ADDRESS ---
