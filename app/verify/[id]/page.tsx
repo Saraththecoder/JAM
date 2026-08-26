@@ -1,0 +1,214 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { ShieldCheck, ShieldAlert, FileText, Calendar, User, Clock, CheckCircle } from 'lucide-react';
+
+interface Letter {
+  id: string;
+  created_at: string;
+  generated_body: string;
+  status: string;
+  reference_number: string | null;
+  mentor_signed_at: string | null;
+  hod_signed_at: string | null;
+  letter_types: {
+    name: string;
+  };
+  student: {
+    full_name: string;
+    roll_number: string;
+    departments: {
+      name: string;
+    };
+  };
+  mentor?: {
+    full_name: string;
+    designation: string;
+  };
+  hod?: {
+    full_name: string;
+    designation: string;
+  };
+}
+
+export default function VerificationPage() {
+  const params = useParams();
+  const letterId = params.id as string;
+
+  const [letter, setLetter] = useState<Letter | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const supabase = createClient();
+
+  useEffect(() => {
+    async function verifyDocument() {
+      if (!letterId) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('letters')
+          .select(`
+            id,
+            created_at,
+            generated_body,
+            status,
+            reference_number,
+            mentor_signed_at,
+            hod_signed_at,
+            letter_types (name),
+            student:student_id (full_name, roll_number, departments (name)),
+            mentor:mentor_id (full_name, designation),
+            hod:hod_id (full_name, designation)
+          `)
+          .eq('id', letterId)
+          .single();
+
+        if (fetchError || !data) {
+          throw new Error('This document does not exist, is pending approval, or has been revoked.');
+        }
+
+        if (data.status !== 'approved') {
+          throw new Error('This document is not yet fully approved.');
+        }
+
+        setLetter(data as any);
+      } catch (err: any) {
+        console.error('Verification error:', err);
+        setError(err.message || 'Could not verify document.');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    verifyDocument();
+  }, [letterId, supabase]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-transparent flex flex-col items-center justify-center gap-3 text-zinc-550 font-bold">
+        <Clock className="w-8 h-8 animate-spin text-black" />
+        <p className="text-xs font-mono font-semibold">Verifying secure digital signature hashes...</p>
+      </div>
+    );
+  }
+
+  if (error || !letter) {
+    return (
+      <div className="min-h-screen bg-transparent flex items-center justify-center p-6">
+        <div className="max-w-md w-full paper-card bg-neured p-8 text-center rounded-2xl border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+          <ShieldAlert className="w-16 h-16 text-black mx-auto mb-4" />
+          <h2 className="text-xl font-serif font-black text-black mb-2">Verification Failed</h2>
+          <p className="text-xs text-black/85 mb-6 leading-relaxed font-bold">
+            {error || 'This QR link is invalid. The document has not been signed or may have been revoked.'}
+          </p>
+          <div className="p-3 bg-white text-black border-2 border-black rounded-xl text-[10px] font-mono font-bold shadow-[2px_2px_0px_rgba(0,0,0,1)]">
+            AITS Tirupati Department of AI&ML Document Authentication Services.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-transparent py-8 sm:py-12 px-4 sm:px-6 flex flex-col items-center justify-center">
+      <div className="max-w-2xl w-full paper-card rounded-3xl overflow-hidden bg-white border-2 border-black shadow-[6px_6px_0px_rgba(0,0,0,1)]">
+        {/* Header Ribbon */}
+        <div className="bg-neugreen text-black p-6 flex items-center gap-4 border-b-2 border-black">
+          <div className="p-3 bg-white text-black rounded-2xl border-2 border-black shadow-[2px_2px_0px_rgba(0,0,0,1)]">
+            <ShieldCheck className="w-8 h-8 text-black" />
+          </div>
+          <div>
+            <h1 className="text-lg font-serif font-black uppercase tracking-wider text-black">Original Document Verified</h1>
+            <p className="text-[10px] font-mono text-black/85 mt-0.5 font-bold">Digitally signed and archived in the AITS ERP system.</p>
+          </div>
+        </div>
+
+        {/* Verification Summary */}
+        <div className="p-5 sm:p-6 md:p-8 space-y-6">
+          <div className="grid grid-cols-2 gap-4 text-xs font-mono border-b-2 border-black pb-6">
+            <div>
+              <p className="text-[10px] text-zinc-600 font-extrabold uppercase tracking-wider">Reference Number</p>
+              <p className="font-black text-black mt-1">{letter.reference_number}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-zinc-600 font-extrabold uppercase tracking-wider">Document Type</p>
+              <p className="font-black text-black mt-1">{letter.letter_types.name}</p>
+            </div>
+          </div>
+
+          {/* Student details */}
+          <div>
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-black mb-3 flex items-center gap-1.5 font-sans">
+              <User className="w-4 h-4 text-black" /> Student Details
+            </h3>
+            <div className="grid grid-cols-2 gap-4 bg-neuyellow/20 p-4 rounded-xl text-xs space-y-0 text-black border-2 border-black font-bold">
+              <div>
+                <span className="text-zinc-600 font-bold">Full Name:</span>
+                <p className="font-extrabold text-black mt-0.5">{letter.student.full_name}</p>
+              </div>
+              <div>
+                <span className="text-zinc-600 font-bold">Roll Number:</span>
+                <p className="font-extrabold text-black mt-0.5 font-mono">{letter.student.roll_number}</p>
+              </div>
+              <div className="col-span-2 pt-2 border-t-2 border-black/30">
+                <span className="text-zinc-600 font-bold">Department:</span>
+                <p className="font-extrabold text-black mt-0.5">
+                  Department of {letter.student.departments.name}, AITS Tirupati
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Approval Signatures Log */}
+          <div>
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-black mb-3 flex items-center gap-1.5 font-sans">
+              <CheckCircle className="w-4 h-4 text-emerald-600" /> Digital Signatures Log
+            </h3>
+            <div className="space-y-3">
+              {/* Mentor Recommendation */}
+              <div className="flex items-start gap-3 bg-neublue/30 p-4 rounded-xl text-xs border-2 border-black font-bold">
+                <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5 animate-bounce animate-duration-1000" />
+                <div>
+                  <p className="font-extrabold text-black">Recommended by Mentor</p>
+                  <p className="text-zinc-700 mt-0.5">{letter.mentor?.full_name} ({letter.mentor?.designation})</p>
+                  <p className="text-[10px] text-zinc-600 mt-1 font-mono">
+                    Stamped: {letter.mentor_signed_at ? new Date(letter.mentor_signed_at).toLocaleString('en-IN') : 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              {/* HOD Approval */}
+              <div className="flex items-start gap-3 bg-neuyellow/30 p-4 rounded-xl text-xs border-2 border-black font-bold">
+                <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5 animate-bounce animate-duration-1000" />
+                <div>
+                  <p className="font-extrabold text-black">Approved by Head of Department (HOD)</p>
+                  <p className="text-zinc-700 mt-0.5">{letter.hod?.full_name} ({letter.hod?.designation})</p>
+                  <p className="text-[10px] text-zinc-600 mt-1 font-mono">
+                    Approved: {letter.hod_signed_at ? new Date(letter.hod_signed_at).toLocaleString('en-IN') : 'N/A'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Letter Body Preview */}
+          <div>
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-black mb-3 flex items-center gap-1.5 font-sans">
+              <FileText className="w-4 h-4 text-black" /> Letter Document Body
+            </h3>
+            <div className="p-4 bg-white rounded-xl border-2 border-black max-h-60 overflow-y-auto text-xs font-serif text-black whitespace-pre-wrap leading-relaxed shadow-inner italic font-medium">
+              {letter.generated_body}
+            </div>
+          </div>
+        </div>
+      </div>
+      <p className="text-[10px] font-mono text-black/80 mt-6 text-center font-bold">
+        Annamacharya Institute of Technology & Sciences, Tirupati • Secure Verification Node
+      </p>
+    </div>
+  );
+}

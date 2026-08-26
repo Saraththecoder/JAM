@@ -1,26 +1,387 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:where(.dark, .dark *));
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+:root {
+  --background: #eae7dc;     /* Warm Alabaster Stone Board */
+  --foreground: #000000;     /* Solid Black Ink */
+  --card: #fdfdfc;           /* Crisp Ivory Graph Paper Sheet */
+  --card-foreground: #000000;
+  --border: #000000;         /* Solid Black Outlines */
+  --ring: #000000;           /* Black focus rings */
+  
+  /* Neubrutalist Solid Offset Shadows */
+  --paper-shadow: 4px 4px 0px 0px #000000; 
+  --paper-shadow-hover: 6px 6px 0px 0px #000000;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Always preserve the high-contrast cartoon style warm paper theme, avoiding black/dark charcoal backgrounds */
+    --background: #eae7dc;     /* Warm Alabaster Stone Board */
+    --foreground: #000000;     /* Solid Black Ink */
+    --card: #fdfdfc;           /* Crisp Ivory Graph Paper Sheet */
+    --card-foreground: #000000;
+    --border: #000000;         /* Solid Black Outlines */
+    --ring: #000000;           /* Black focus rings */
+    
+    --paper-shadow: 4px 4px 0px 0px #000000; 
+    --paper-shadow-hover: 6px 6px 0px 0px #000000;
   }
 }
 
+@theme {
+  --font-sans: var(--font-outfit), system-ui, -apple-system, sans-serif;
+  --font-serif: var(--font-outfit), system-ui, -apple-system, sans-serif;
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-neured: #eb8980;
+  --color-neugreen: #a9d4a4;
+  --color-neuyellow: #ebd28e;
+  --color-neublue: #9fc5e8;
+}
+
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  
+  /* Graph Paper Square Grid Pattern */
+  background-size: 20px 20px;
+  background-image: 
+    linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+  background-position: center top;
+  /* NOTE: background-attachment:fixed removed — causes iOS repaint jank */
+  opacity: 0.99;
+  /* Safe area padding for notched phones */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    background-image: 
+      linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  }
+}
+
+/* Lined notebook paper background */
+.bg-notebook-lines {
+  background-size: 100% 24px;
+  background-image: linear-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px);
+}
+
+@media (prefers-color-scheme: dark) {
+  .bg-notebook-lines {
+    background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  }
+}
+
+/* Neubrutalist paper card styles */
+.paper-card {
+  background-color: var(--card);
+  color: var(--card-foreground);
+  border: 2px solid var(--border) !important;
+  border-radius: 20px !important;
+  box-shadow: var(--paper-shadow) !important;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.paper-card-hover:hover {
+  box-shadow: var(--paper-shadow-hover) !important;
+  transform: translate(-2px, -2px) !important;
+}
+
+/* Global Form Elements Override to SaaS/Neubrutalist style */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+textarea,
+select {
+  background-color: var(--card) !important;
+  color: var(--foreground) !important;
+  border: 2px solid var(--border) !important;
+  border-radius: 16px !important;
+  /* Specificity fix: set ONLY vertical padding here so horizontal utilities govern icon spacing */
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  font-size: 0.8rem !important;
+  font-weight: 500 !important;
+  transition: all 0.15s ease !important;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  box-shadow: 3px 3px 0px 0px var(--border) !important;
+  transform: translate(-1px, -1px) !important;
+}
+
+/* Solid neubrutalist button style */
+.paper-btn,
+button[type="submit"] {
+  background-image: none !important;
+  background-color: #ebd28e !important; /* Pastel Yellow/Beige */
+  color: #000000 !important;
+  border: 2px solid #000000 !important;
+  box-shadow: 4px 4px 0px 0px #000000 !important;
+  font-weight: 800 !important;
+  text-transform: none !important;
+  letter-spacing: 0px !important;
+  transition: all 0.1s ease !important;
+  cursor: pointer !important;
+  border-radius: 16px !important;
+}
+
+.dark .paper-btn,
+.dark button[type="submit"] {
+  background-color: #ebd28e !important;
+  color: #000000 !important;
+  border: 2px solid #ffffff !important;
+  box-shadow: 4px 4px 0px 0px #ffffff !important;
+}
+
+.paper-btn:hover,
+button[type="submit"]:hover {
+  transform: translate(-2px, -2px) !important;
+  box-shadow: 6px 6px 0px 0px #000000 !important;
+  background-color: #f5dfa3 !important;
+  filter: none !important;
+}
+
+.dark .paper-btn:hover,
+.dark button[type="submit"]:hover {
+  box-shadow: 6px 6px 0px 0px #ffffff !important;
+}
+
+.paper-btn:active,
+button[type="submit"]:active {
+  transform: translate(2px, 2px) !important;
+  box-shadow: 2px 2px 0px 0px #000000 !important;
+}
+
+.dark .paper-btn:active,
+.dark button[type="submit"]:active {
+  box-shadow: 2px 2px 0px 0px #ffffff !important;
+}
+
+.paper-btn:disabled,
+button[type="submit"]:disabled {
+  opacity: 0.5 !important;
+  transform: none !important;
+  box-shadow: none !important;
+  background-color: #cccccc !important;
+  border-color: #888888 !important;
+}
+
+.bg-grid-pattern {
+  background-size: 20px 20px;
+  background-image: 
+    linear-gradient(to right, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+}
+
+.dark .bg-grid-pattern {
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+}
+
+/* ==========================================
+   COLOR MAPPINGS & PALETTES
+   ========================================== */
+
+.bg-\[\#fbfaf7\] {
+  background-color: var(--background) !important;
+}
+.bg-\[\#fdfdfc\] {
+  background-color: var(--card) !important;
+}
+.text-\[\#1c1a17\] {
+  color: var(--foreground) !important;
+}
+.border-\[\#dcd9d0\] {
+  border-color: var(--border) !important;
+}
+
+/* Map standard Zinc elements to variables */
+.bg-zinc-50, 
+.bg-zinc-100 {
+  background-color: var(--card) !important;
+}
+.dark .bg-zinc-950, 
+.dark .bg-zinc-900 {
+  background-color: var(--background) !important;
+}
+.border-zinc-200, 
+.border-zinc-300 {
+  border-color: var(--border) !important;
+}
+.dark .border-zinc-800, 
+.dark .border-zinc-700 {
+  border-color: var(--border) !important;
+}
+
+.border-zinc-200 {
+  border-color: var(--border) !important;
+}
+.divide-zinc-200 > * + * {
+  border-color: var(--border) !important;
+}
+.dark .divide-zinc-850 > * + * {
+  border-color: var(--border) !important;
+}
+.divide-y {
+  border-color: var(--border) !important;
+}
+
+/* ==========================================
+   ACCESSIBILITY & FOCUS
+   ========================================== */
+
+/* Visually hidden but accessible to screen readers */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+.sr-only.focus\:not-sr-only:focus {
+  position: fixed;
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* Minimum touch target size for mobile */
+@media (max-width: 640px) {
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* Override for inline icons that shouldn't expand */
+  button svg, a svg {
+    min-height: unset;
+    min-width: unset;
+  }
+}
+
+/* ==========================================
+   ANIMATIONS
+   ========================================== */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInModal {
+  from {
+    opacity: 0;
+    transform: translateY(32px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes overlayIn {
+  from { opacity: 0; backdrop-filter: blur(0px); }
+  to   { opacity: 1; backdrop-filter: blur(8px); }
+}
+
+@keyframes popIn {
+  0%   { opacity: 0; transform: scale(0.85); }
+  70%  { transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes slideInRow {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Utility classes */
+.animate-fade-in-up {
+  animation: fadeInUp 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-slide-in-modal {
+  animation: slideInModal 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  will-change: transform, opacity;
+}
+
+.animate-overlay-in {
+  animation: overlayIn 0.25s ease both;
+}
+
+.animate-pop-in {
+  animation: popIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-count-up {
+  animation: countUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Stagger delays for list items */
+.stagger-1 { animation-delay: 0ms; }
+.stagger-2 { animation-delay: 60ms; }
+.stagger-3 { animation-delay: 120ms; }
+.stagger-4 { animation-delay: 180ms; }
+.stagger-5 { animation-delay: 240ms; }
+
+/* Table row entrance */
+.animate-row-in {
+  animation: slideInRow 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ==========================================
+   PRINT STYLES
+   ========================================== */
+@media print {
+  body {
+    background: white !important;
+    background-image: none !important;
+  }
+  nav, footer, button, .no-print {
+    display: none !important;
+  }
+  .paper-card {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+  }
 }
