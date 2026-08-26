@@ -245,8 +245,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // --- SAFE DATE FORMATTER ---
+    const formatDate = (dateInput: any) => {
+      const d = dateInput ? new Date(dateInput) : new Date();
+      const validDate = isNaN(d.getTime()) ? new Date() : d;
+      const day = String(validDate.getDate()).padStart(2, '0');
+      const month = String(validDate.getMonth() + 1).padStart(2, '0');
+      const year = validDate.getFullYear();
+      return `${day}/${month}/${year}`;
+    };
+
     // --- RENDER REFERENCE NUMBER & DATE ---
-    const dateStr = `Date: ${new Date(letter.created_at).toLocaleDateString('en-IN')}`;
+    const dateStr = `Date: ${formatDate(new Date())}`;
     page.drawText(dateStr, {
       x: width - margin - helvetica.widthOfTextAtSize(dateStr, 10),
       y: headerBottomY - 25,
@@ -265,23 +275,41 @@ export async function POST(request: NextRequest) {
 
     // --- RENDER TO ADDRESS ---
     page.drawText('To,', { x: margin, y: headerBottomY - 50, size: 11, font: helveticaBold, color: blackColor });
-    page.drawText(letter.hod?.full_name || 'The Head of the Department', { x: margin, y: headerBottomY - 65, size: 11, font: helvetica, color: blackColor });
-    page.drawText(letter.hod?.designation || 'Head of the Department', { x: margin, y: headerBottomY - 80, size: 10, font: helvetica, color: grayColor });
-    page.drawText(`Department of ${letter.student?.departments?.name || 'AI&ML'}`, { x: margin, y: headerBottomY - 95, size: 10, font: helvetica, color: grayColor });
-    page.drawText('AITS, Tirupati.', { x: margin, y: headerBottomY - 110, size: 10, font: helvetica, color: grayColor });
+    
+    let toY = headerBottomY - 65;
+    const hodName = letter.hod?.full_name;
+    const hasHodName = hodName && !hodName.toLowerCase().includes('head of');
+    
+    if (hasHodName) {
+      page.drawText(hodName, { x: margin, y: toY, size: 11, font: helvetica, color: blackColor });
+      toY -= 15;
+      page.drawText(letter.hod?.designation || 'Head of the Department', { x: margin, y: toY, size: 10, font: helvetica, color: grayColor });
+    } else {
+      page.drawText('The Head of the Department', { x: margin, y: toY, size: 11, font: helvetica, color: blackColor });
+    }
+    
+    toY -= 15;
+    page.drawText(`Department of ${letter.student?.departments?.name || 'AI&ML'}`, { x: margin, y: toY, size: 10, font: helvetica, color: grayColor });
+    toY -= 15;
+    page.drawText('AITS, Tirupati.', { x: margin, y: toY, size: 10, font: helvetica, color: grayColor });
+
+    // Since toY ends at the last line of "To" address, render "From" address relatively
+    const fromYStart = toY - 30; // 30px spacing between To and From blocks
 
     // --- RENDER FROM ADDRESS ---
-    page.drawText('From,', { x: margin, y: headerBottomY - 140, size: 11, font: helveticaBold, color: blackColor });
-    page.drawText(letter.student.full_name, { x: margin, y: headerBottomY - 155, size: 11, font: helvetica, color: blackColor });
-    page.drawText(`Roll No: ${letter.student.roll_number}`, { x: margin, y: headerBottomY - 170, size: 10, font: helvetica, color: grayColor });
-    page.drawText(`Department of ${letter.student.departments?.name || 'AI&ML'}`, { x: margin, y: headerBottomY - 185, size: 10, font: helvetica, color: grayColor });
-    page.drawText('AITS, Tirupati.', { x: margin, y: headerBottomY - 200, size: 10, font: helvetica, color: grayColor });
+    page.drawText('From,', { x: margin, y: fromYStart, size: 11, font: helveticaBold, color: blackColor });
+    page.drawText(letter.student.full_name, { x: margin, y: fromYStart - 15, size: 11, font: helvetica, color: blackColor });
+    page.drawText(`Roll No: ${letter.student.roll_number}`, { x: margin, y: fromYStart - 30, size: 10, font: helvetica, color: grayColor });
+    page.drawText(`Department of ${letter.student.departments?.name || 'AI&ML'}`, { x: margin, y: fromYStart - 45, size: 10, font: helvetica, color: grayColor });
+    page.drawText('AITS, Tirupati.', { x: margin, y: fromYStart - 60, size: 10, font: helvetica, color: grayColor });
+
+    const subjectYStart = fromYStart - 90; // Spacing below From block
 
     // --- RENDER SUBJECT LINE ---
     const subjectLine = `Subject: Request for ${letter.letter_types?.name || 'Academic Letter'} - Reg.`;
     page.drawText(subjectLine, {
       x: margin,
-      y: headerBottomY - 230,
+      y: subjectYStart,
       size: 11,
       font: helveticaBold,
       color: blackColor,
@@ -289,8 +317,8 @@ export async function POST(request: NextRequest) {
 
     // Draw horizontal separator line below Subject metadata
     page.drawLine({
-      start: { x: margin, y: headerBottomY - 242 },
-      end: { x: width - margin, y: headerBottomY - 242 },
+      start: { x: margin, y: subjectYStart - 12 },
+      end: { x: width - margin, y: subjectYStart - 12 },
       color: borderCol,
       thickness: 0.5,
     });
@@ -300,7 +328,7 @@ export async function POST(request: NextRequest) {
     const lineSpacing = 18; // Increased from 16 to 18 for premium spacing
     const bodyLines = wrapText(letter.generated_body, contentWidth, helvetica, wrapFontSize);
     
-    let currentY = headerBottomY - 265; // Shifted up/down dynamically based on headerBottomY
+    let currentY = subjectYStart - 35; // Positioned dynamically relative to Subject line
     
     for (const line of bodyLines) {
       if (line === '') {
@@ -361,7 +389,7 @@ export async function POST(request: NextRequest) {
       page.drawText(letter.mentor.full_name, { x: signX, y: currentY - 65, size: 10, font: helveticaBold, color: blackColor });
       page.drawText(letter.mentor.designation, { x: signX, y: currentY - 78, size: 9, font: helvetica, color: grayColor });
       
-      page.drawText(`Digitally verified on: ${new Date().toLocaleDateString('en-IN')}`, { 
+      page.drawText(`Digitally verified on: ${formatDate(new Date())}`, { 
         x: signX, 
         y: currentY - 90, 
         size: 7.5, 
@@ -408,7 +436,7 @@ export async function POST(request: NextRequest) {
       page.drawText(letter.hod.full_name, { x: hodX, y: currentY - 65, size: 10, font: helveticaBold, color: blackColor });
       page.drawText(letter.hod.designation, { x: hodX, y: currentY - 78, size: 9, font: helvetica, color: grayColor });
       
-      page.drawText(`Digitally verified on: ${new Date().toLocaleDateString('en-IN')}`, { 
+      page.drawText(`Digitally verified on: ${formatDate(new Date())}`, { 
         x: hodX, 
         y: currentY - 90, 
         size: 7.5, 
