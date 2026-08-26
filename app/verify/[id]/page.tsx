@@ -136,7 +136,7 @@ export default function VerificationPage() {
             </div>
             <div>
               <p className="text-[10px] text-zinc-600 font-extrabold uppercase tracking-wider">Document Type</p>
-              <p className="font-black text-black mt-1">{letter.letter_types.name}</p>
+              <p className="font-black text-black mt-1">{letter.letter_types?.name || 'Letter'}</p>
             </div>
           </div>
 

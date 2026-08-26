@@ -131,7 +131,7 @@ export default function StudentDashboard() {
 
   const filteredLetters = letters.filter(letter => {
     const matchesSearch = 
-      letter.letter_types.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (letter.letter_types?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (letter.mentor?.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (letter.hod?.full_name || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || letter.status === statusFilter;
@@ -274,7 +274,7 @@ export default function StudentDashboard() {
                     {filteredLetters.map((letter) => (
                       <tr key={letter.id} className="hover:bg-zinc-50/50 transition-colors">
                         <td className="px-5 py-4 border-r-2 border-black">
-                          <span className="font-extrabold text-zinc-900">{letter.letter_types.name}</span>
+                          <span className="font-extrabold text-zinc-900">{letter.letter_types?.name || 'Letter'}</span>
                         </td>
                         <td className="px-5 py-4 border-r-2 border-black">
                           <div className="text-xs space-y-0.5">
@@ -307,7 +307,7 @@ export default function StudentDashboard() {
                 <div key={letter.id} className="paper-card p-4 rounded-2xl" role="listitem">
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div>
-                      <p className="font-extrabold text-sm text-zinc-900">{letter.letter_types.name}</p>
+                      <p className="font-extrabold text-sm text-zinc-900">{letter.letter_types?.name || 'Letter'}</p>
                       <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 font-bold mt-0.5">
                         <Calendar className="w-3 h-3" aria-hidden="true" />
                         {new Date(letter.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -341,7 +341,7 @@ function LetterAction({ letter, downloadingId, onDownload }: {
         onClick={() => onDownload(letter.id)}
         disabled={downloadingId === letter.id}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-black bg-neugreen border-2 border-black rounded-xl shadow-[2px_2px_0px_rgba(0,0,0,1)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_rgba(0,0,0,1)] transition-all disabled:opacity-50"
-        aria-label={`Download PDF for ${letter.letter_types.name}`}
+        aria-label={`Download PDF for ${letter.letter_types?.name || 'Letter'}`}
       >
         {downloadingId === letter.id ? (
           <><RefreshCw className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />Downloading...</>

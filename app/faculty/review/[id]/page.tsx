@@ -336,7 +336,7 @@ export default function FacultyReviewPage() {
             <div className="space-y-0.5">
               <p className="font-bold">To,</p>
               <p className="font-semibold">The Head of the Department / Faculty In-Charge,</p>
-              <p>Department of {letter?.student.departments.name},</p>
+              <p>Department of {letter?.student?.departments?.name || 'AI&ML'},</p>
               <p>AITS, Tirupati.</p>
             </div>
 

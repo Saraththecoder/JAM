@@ -731,7 +731,7 @@ export default function FacultyDashboard() {
                             </td>
                             <td className="px-6 py-4 border-r-2 border-black whitespace-nowrap font-extrabold">
                               <span className="font-bold text-zinc-900 dark:text-zinc-250">
-                                {letter.letter_types.name}
+                                {letter.letter_types?.name || 'Letter'}
                               </span>
                             </td>
                             <td className="px-6 py-4 border-r-2 border-black whitespace-nowrap text-zinc-500">
@@ -790,7 +790,7 @@ export default function FacultyDashboard() {
                       </div>
 
                       <div className="border-t border-dashed border-black/10 pt-2 flex flex-col gap-1 text-[11px] font-bold text-zinc-700">
-                        <p><span className="text-zinc-400">Type:</span> {letter.letter_types.name}</p>
+                        <p><span className="text-zinc-400">Type:</span> {letter.letter_types?.name || 'Letter'}</p>
                         <p className="flex items-center gap-1">
                           <span className="text-zinc-400">Submitted:</span> 
                           <Calendar className="w-3.5 h-3.5 shrink-0" /> 
