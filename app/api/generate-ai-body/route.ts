@@ -59,6 +59,7 @@ Student's prompt / details: ${description}`;
           { role: 'user', content: 'Generate the letter body paragraphs based on the instruction.' }
         ],
         temperature: 0.7,
+        max_tokens: 1000,
       }),
     });
 
