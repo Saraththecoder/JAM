@@ -148,16 +148,16 @@ export default function VerificationPage() {
             <div className="grid grid-cols-2 gap-4 bg-neuyellow/20 p-4 rounded-xl text-xs space-y-0 text-black border-2 border-black font-bold">
               <div>
                 <span className="text-zinc-600 font-bold">Full Name:</span>
-                <p className="font-extrabold text-black mt-0.5">{letter.student.full_name}</p>
+                <p className="font-extrabold text-black mt-0.5">{letter.student?.full_name || 'Deleted Student'}</p>
               </div>
               <div>
                 <span className="text-zinc-600 font-bold">Roll Number:</span>
-                <p className="font-extrabold text-black mt-0.5 font-mono">{letter.student.roll_number}</p>
+                <p className="font-extrabold text-black mt-0.5 font-mono">{letter.student?.roll_number || 'N/A'}</p>
               </div>
               <div className="col-span-2 pt-2 border-t-2 border-black/30">
                 <span className="text-zinc-600 font-bold">Department:</span>
                 <p className="font-extrabold text-black mt-0.5">
-                  Department of {letter.student.departments.name}, AITS Tirupati
+                  Department of {letter.student?.departments?.name || 'AI&ML'}, AITS Tirupati
                 </p>
               </div>
             </div>
@@ -181,17 +181,19 @@ export default function VerificationPage() {
                 </div>
               </div>
 
-              {/* HOD Approval */}
-              <div className="flex items-start gap-3 bg-neuyellow/30 p-4 rounded-xl text-xs border-2 border-black font-bold">
-                <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5 animate-bounce animate-duration-1000" />
-                <div>
-                  <p className="font-extrabold text-black">Approved by Head of Department (HOD)</p>
-                  <p className="text-zinc-700 mt-0.5">{letter.hod?.full_name} ({letter.hod?.designation})</p>
-                  <p className="text-[10px] text-zinc-600 mt-1 font-mono">
-                    Approved: {letter.hod_signed_at ? new Date(letter.hod_signed_at).toLocaleString('en-IN') : 'N/A'}
-                  </p>
+              {/* HOD Approval (Only if signed by HOD) */}
+              {letter.hod_signed_at && (
+                <div className="flex items-start gap-3 bg-neuyellow/30 p-4 rounded-xl text-xs border-2 border-black font-bold">
+                  <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5 animate-bounce animate-duration-1000" />
+                  <div>
+                    <p className="font-extrabold text-black">Approved by Head of Department (HOD)</p>
+                    <p className="text-zinc-700 mt-0.5">{letter.hod?.full_name} ({letter.hod?.designation})</p>
+                    <p className="text-[10px] text-zinc-600 mt-1 font-mono">
+                      Approved: {new Date(letter.hod_signed_at).toLocaleString('en-IN')}
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
 

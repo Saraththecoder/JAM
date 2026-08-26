@@ -342,13 +342,13 @@ export default function FacultyReviewPage() {
 
             <div className="space-y-0.5">
               <p className="font-bold">From,</p>
-              <p className="font-semibold">{letter?.student.full_name},</p>
-              <p className="font-mono font-bold">Roll Number: {letter?.student.roll_number},</p>
-              <p>Department of {letter?.student.departments.name}, AITS.</p>
+              <p className="font-semibold">{letter?.student?.full_name || 'Deleted Student'},</p>
+              <p className="font-mono font-bold">Roll Number: {letter?.student?.roll_number || 'N/A'},</p>
+              <p>Department of {letter?.student?.departments?.name || 'AI&ML'}, AITS.</p>
             </div>
 
             <p className="font-bold text-black border-y-2 border-black py-2.5">
-              Subject: Request for {letter?.letter_types.name} - Reg.
+              Subject: Request for {letter?.letter_types?.name || 'Academic Letter'} - Reg.
             </p>
 
             <p>
@@ -363,8 +363,8 @@ export default function FacultyReviewPage() {
             <div className="flex justify-between items-end pt-8 gap-4">
               <div>
                 <p className="font-bold">Yours obediently,</p>
-                <p className="font-semibold text-black mt-4">{letter?.student.full_name}</p>
-                <p className="font-bold">({letter?.student.roll_number})</p>
+                <p className="font-semibold text-black mt-4">{letter?.student?.full_name || 'Deleted Student'}</p>
+                <p className="font-bold">({letter?.student?.roll_number || 'N/A'})</p>
               </div>
 
               {/* Side-by-side signatures representation */}
@@ -523,15 +523,15 @@ export default function FacultyReviewPage() {
             <div className="space-y-2 text-xs font-bold text-black">
               <div className="flex justify-between">
                 <span className="text-zinc-500">Name:</span>
-                <span className="font-extrabold text-zinc-800">{letter?.student.full_name}</span>
+                <span className="font-extrabold text-zinc-800">{letter?.student?.full_name || 'Deleted Student'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-zinc-500">Roll No:</span>
-                <span className="font-mono text-zinc-800">{letter?.student.roll_number}</span>
+                <span className="font-mono text-zinc-800">{letter?.student?.roll_number || 'N/A'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-zinc-500">Branch:</span>
-                <span className="font-extrabold text-zinc-800">{letter?.student.departments.name}</span>
+                <span className="font-extrabold text-zinc-800">{letter?.student?.departments?.name || 'AI&ML'}</span>
               </div>
             </div>
           </div>
