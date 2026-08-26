@@ -46,6 +46,13 @@ interface FacultyProfile {
 
 export default function FacultyDashboard() {
   const router = useRouter();
+
+  const formatDate = (dateVal: string) => {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '—';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  };
   const [profile, setProfile] = useState<FacultyProfile | null>(null);
   const [letters, setLetters] = useState<Letter[]>([]);
   const [loading, setLoading] = useState(true);
@@ -150,8 +157,8 @@ export default function FacultyDashboard() {
   }, [router, supabase]);
 
   const isHodUser = profile?.role === 'faculty' && (
-    profile.designation?.toLowerCase().includes('hod') ||
-    profile.designation?.toLowerCase().includes('head')
+    profile?.designation?.toLowerCase().includes('hod') ||
+    profile?.designation?.toLowerCase().includes('head')
   );
 
   const fetchDeptProfiles = async () => {
@@ -737,11 +744,7 @@ export default function FacultyDashboard() {
                             <td className="px-6 py-4 border-r-2 border-black whitespace-nowrap text-zinc-500">
                               <div className="flex items-center gap-1.5 text-xs text-black font-bold">
                                 <Calendar className="w-3.5 h-3.5" />
-                                {new Date(letter.created_at).toLocaleDateString('en-IN', {
-                                  day: 'numeric',
-                                  month: 'short',
-                                  year: 'numeric'
-                                })}
+                                {formatDate(letter.created_at)}
                               </div>
                             </td>
                             <td className="px-6 py-4 border-r-2 border-black whitespace-nowrap">
@@ -794,7 +797,7 @@ export default function FacultyDashboard() {
                         <p className="flex items-center gap-1">
                           <span className="text-zinc-400">Submitted:</span> 
                           <Calendar className="w-3.5 h-3.5 shrink-0" /> 
-                          {new Date(letter.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {formatDate(letter.created_at)}
                         </p>
                       </div>
 

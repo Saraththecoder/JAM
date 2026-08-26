@@ -43,6 +43,13 @@ interface StudentProfile {
 
 export default function StudentDashboard() {
   const router = useRouter();
+
+  const formatDate = (dateVal: string) => {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '—';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  };
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [letters, setLetters] = useState<Letter[]>([]);
   const [loading, setLoading] = useState(true);
@@ -285,7 +292,7 @@ export default function StudentDashboard() {
                         <td className="px-5 py-4 border-r-2 border-black">
                           <div className="flex items-center gap-1.5 text-xs text-black font-bold whitespace-nowrap">
                             <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
-                            {new Date(letter.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            {formatDate(letter.created_at)}
                           </div>
                         </td>
                         <td className="px-5 py-4 border-r-2 border-black">
@@ -310,7 +317,7 @@ export default function StudentDashboard() {
                       <p className="font-extrabold text-sm text-zinc-900">{letter.letter_types?.name || 'Letter'}</p>
                       <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 font-bold mt-0.5">
                         <Calendar className="w-3 h-3" aria-hidden="true" />
-                        {new Date(letter.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {formatDate(letter.created_at)}
                       </div>
                     </div>
                     <StatusBadge status={letter.status} />

@@ -790,7 +790,13 @@ export default function NewLetterPage() {
               <div className="space-y-4">
                 {/* Header preview elements */}
                 <div className="p-4 bg-neuyellow/30 text-black rounded-xl border-2 border-black text-xs font-mono font-bold space-y-2">
-                  <p className="text-right">Date: {new Date().toLocaleDateString('en-IN')}</p>
+                  <p className="text-right">Date: {(() => {
+                    const d = new Date();
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                    const year = d.getFullYear();
+                    return `${day}/${month}/${year}`;
+                  })()}</p>
                   <div>
                     <p className="font-semibold text-zinc-700 dark:text-zinc-300">To,</p>
                     <p>HOD: {selectedHod?.full_name}</p>

@@ -44,6 +44,13 @@ interface Letter {
 
 export default function FacultyReviewPage() {
   const router = useRouter();
+
+  const formatDate = (dateVal: string) => {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '—';
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  };
   const params = useParams();
   const letterId = params.id as string;
 
@@ -330,7 +337,7 @@ export default function FacultyReviewPage() {
 
           <div className="space-y-6 text-xs font-serif text-zinc-700 dark:text-zinc-300 leading-relaxed font-medium">
             <p className="text-right font-mono font-bold">
-              Date: {new Date(letter?.created_at || '').toLocaleDateString('en-IN')}
+              Date: {letter?.created_at ? formatDate(letter.created_at) : '—'}
             </p>
 
             <div className="space-y-0.5">

@@ -298,9 +298,9 @@ export async function POST(request: NextRequest) {
 
     // --- RENDER FROM ADDRESS ---
     page.drawText('From,', { x: margin, y: fromYStart, size: 11, font: helveticaBold, color: blackColor });
-    page.drawText(letter.student.full_name, { x: margin, y: fromYStart - 15, size: 11, font: helvetica, color: blackColor });
-    page.drawText(`Roll No: ${letter.student.roll_number}`, { x: margin, y: fromYStart - 30, size: 10, font: helvetica, color: grayColor });
-    page.drawText(`Department of ${letter.student.departments?.name || 'AI&ML'}`, { x: margin, y: fromYStart - 45, size: 10, font: helvetica, color: grayColor });
+    page.drawText(letter.student?.full_name || 'Student', { x: margin, y: fromYStart - 15, size: 11, font: helvetica, color: blackColor });
+    page.drawText(`Roll No: ${letter.student?.roll_number || 'N/A'}`, { x: margin, y: fromYStart - 30, size: 10, font: helvetica, color: grayColor });
+    page.drawText(`Department of ${letter.student?.departments?.name || 'AI&ML'}`, { x: margin, y: fromYStart - 45, size: 10, font: helvetica, color: grayColor });
     page.drawText('AITS, Tirupati.', { x: margin, y: fromYStart - 60, size: 10, font: helvetica, color: grayColor });
 
     const subjectYStart = fromYStart - 90; // Spacing below From block

@@ -150,12 +150,12 @@ const Navbar = forwardRef<HTMLElement, NavbarProps>(({
           {profile && (
             <div className="flex items-center gap-2 px-2.5 py-1 sm:py-1.5 bg-[#fbfaf7] border-2 border-black rounded-xl shadow-[2px_2px_0px_rgba(0,0,0,1)]">
               <div className="w-6 h-6 rounded-full bg-neugreen text-black border-2 border-black flex items-center justify-center text-[10px] font-black shrink-0 shadow-[1px_1px_0px_rgba(0,0,0,1)]">
-                {profile.full_name.charAt(0)}
+                {profile.full_name?.charAt(0) || 'M'}
               </div>
               <div className="text-left hidden sm:block max-w-[120px] md:max-w-[160px]">
                 <p className="text-xs font-black text-black truncate leading-tight">
-                  {profile.full_name.split(' ')[0]}
-                  {profile.full_name.split(' ')[1] ? ` ${profile.full_name.split(' ')[1]}` : ''}
+                  {(profile.full_name || 'Member').split(' ')[0]}
+                  {(profile.full_name || '').split(' ')[1] ? ` ${(profile.full_name || '').split(' ')[1]}` : ''}
                 </p>
                 <p className="text-[8px] font-mono text-zinc-550 font-bold truncate leading-none">
                   {profile.designation || profile.roll_number || 'Member'}

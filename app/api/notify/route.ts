@@ -37,9 +37,9 @@ export async function POST(request: NextRequest) {
 
     const castLetter = letter as any;
     const origin = request.nextUrl.origin || 'http://localhost:3000';
-    const letterTypeName = castLetter.letter_types.name;
-    const studentName = castLetter.student.full_name;
-    const studentRoll = castLetter.student.roll_number;
+    const letterTypeName = castLetter.letter_types?.name || 'Academic Letter';
+    const studentName = castLetter.student?.full_name || 'Student';
+    const studentRoll = castLetter.student?.roll_number || 'N/A';
 
     // 2. Route notification scenarios
     if (type === 'new_request') {
