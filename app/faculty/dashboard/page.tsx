@@ -414,9 +414,9 @@ export default function FacultyDashboard() {
   // Filtering logic
   const filteredLetters = letters.filter(letter => {
     const matchesSearch = 
-      letter.letter_types.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      letter.student.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      letter.student.roll_number.toLowerCase().includes(searchTerm.toLowerCase());
+      (letter.letter_types?.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (letter.student?.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (letter.student?.roll_number || '').toLowerCase().includes(searchTerm.toLowerCase());
     
     let matchesStatus = false;
     if (statusFilter === 'all') {
@@ -717,14 +717,14 @@ export default function FacultyDashboard() {
                             <td className="px-6 py-4 border-r-2 border-black whitespace-nowrap">
                               <div className="flex items-center gap-2">
                                 <div className="w-7 h-7 rounded-full bg-neublue text-black border-2 border-black flex items-center justify-center text-xs font-bold shadow-[1px_1px_0px_rgba(0,0,0,1)]">
-                                  {letter.student.full_name.charAt(0)}
+                                  {(letter.student?.full_name || '?').charAt(0)}
                                 </div>
                                 <div>
                                   <p className="font-extrabold text-zinc-900 dark:text-zinc-200">
-                                    {letter.student.full_name}
+                                    {letter.student?.full_name || 'Deleted Student'}
                                   </p>
                                   <p className="text-[10px] text-zinc-550 dark:text-zinc-450 font-bold">
-                                    {letter.student.roll_number}
+                                    {letter.student?.roll_number || 'N/A'}
                                   </p>
                                 </div>
                               </div>
@@ -775,14 +775,14 @@ export default function FacultyDashboard() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-2">
                           <div className="w-7 h-7 rounded-full bg-neublue text-black border-2 border-black flex items-center justify-center text-xs font-bold shadow-[1px_1px_0px_rgba(0,0,0,1)]">
-                            {letter.student.full_name.charAt(0)}
+                            {(letter.student?.full_name || '?').charAt(0)}
                           </div>
                           <div>
                             <p className="font-extrabold text-xs text-zinc-900 leading-tight">
-                              {letter.student.full_name}
+                              {letter.student?.full_name || 'Deleted Student'}
                             </p>
                             <p className="text-[9px] text-zinc-550 font-bold">
-                              {letter.student.roll_number}
+                              {letter.student?.roll_number || 'N/A'}
                             </p>
                           </div>
                         </div>
