@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
         status,
         mentor_id,
         hod_id,
+        letter_types (name),
         student:student_id (full_name, roll_number, departments (name)),
         mentor:mentor_id (full_name, designation, esign_storage_path),
         hod:hod_id (full_name, designation, esign_storage_path)
@@ -277,7 +278,7 @@ export async function POST(request: NextRequest) {
     page.drawText('AITS, Tirupati.', { x: margin, y: headerBottomY - 200, size: 10, font: helvetica, color: grayColor });
 
     // --- RENDER SUBJECT LINE ---
-    const subjectLine = `Subject: Request for ${letter.letter_types.name} - Reg.`;
+    const subjectLine = `Subject: Request for ${letter.letter_types?.name || 'Academic Letter'} - Reg.`;
     page.drawText(subjectLine, {
       x: margin,
       y: headerBottomY - 230,
