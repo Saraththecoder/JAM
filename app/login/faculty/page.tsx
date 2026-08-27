@@ -129,6 +129,7 @@ export default function FacultyLoginPage() {
               )}
             </button>
           </form>
+
           <div className="mt-5 pt-5 border-t-2 border-black text-center text-xs text-zinc-500 font-semibold">
             <p>
               Not a faculty member?{' '}
@@ -136,35 +137,6 @@ export default function FacultyLoginPage() {
                 Go to Student Login →
               </Link>
             </p>
-          </div>
-
-          {/* Quick Demo Fill */}
-          <div className="mt-5 p-4 bg-[#fbfaf7] border-2 border-black rounded-xl text-xs font-bold text-left shadow-[2px_2px_0px_rgba(0,0,0,1)]">
-            <p className="text-zinc-650 mb-2 flex items-center gap-1.5 font-sans uppercase tracking-wider text-[10px]">
-              <span>💡</span> Quick Demo Login (Click to fill)
-            </p>
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('hod.aiml@aits-tpt.edu.in');
-                  setPassword('hodpassword123');
-                }}
-                className="w-full text-left px-3 py-2 bg-neuyellow/30 text-black border-2 border-black rounded-lg hover:bg-neuyellow/55 hover:shadow-[1px_1px_0px_rgba(0,0,0,1)] active:shadow-none transition-all font-mono text-[9px] font-extrabold cursor-pointer"
-              >
-                Dr. M. Sreenivasulu (HOD, AI&ML)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('sumathi.g@aits-tpt.edu.in');
-                  setPassword('facultypwd123');
-                }}
-                className="w-full text-left px-3 py-2 bg-neugreen/25 text-black border-2 border-black rounded-lg hover:bg-neugreen/45 hover:shadow-[1px_1px_0px_rgba(0,0,0,1)] active:shadow-none transition-all font-mono text-[9px] font-extrabold cursor-pointer"
-              >
-                Smt. G. Sumathi (Class Mentor)
-              </button>
-            </div>
           </div>
         </div>
 

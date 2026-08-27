@@ -131,6 +131,7 @@ export default function StudentLoginPage() {
               )}
             </button>
           </form>
+
           <div className="mt-5 pt-5 border-t-2 border-black text-center text-xs text-zinc-500 font-semibold">
             <p>
               Not a student?{' '}
@@ -138,35 +139,6 @@ export default function StudentLoginPage() {
                 Go to Faculty Login →
               </Link>
             </p>
-          </div>
-
-          {/* Quick Demo Fill */}
-          <div className="mt-5 p-4 bg-[#fbfaf7] border-2 border-black rounded-xl text-xs font-bold text-left shadow-[2px_2px_0px_rgba(0,0,0,1)]">
-            <p className="text-zinc-650 mb-2 flex items-center gap-1.5 font-sans uppercase tracking-wider text-[10px]">
-              <span>💡</span> Quick Demo Login (Click to fill)
-            </p>
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('24ak1a33d8@aits-tpt.edu.in');
-                  setPassword('studentpwd123');
-                }}
-                className="w-full text-left px-3 py-2 bg-neublue/30 text-black border-2 border-black rounded-lg hover:bg-neublue/55 hover:shadow-[1px_1px_0px_rgba(0,0,0,1)] active:shadow-none transition-all font-mono text-[9px] font-extrabold cursor-pointer"
-              >
-                Rahul Reddy (Roll: 24AK1A33D8)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('24ak1a33d9@aits-tpt.edu.in');
-                  setPassword('studentpwd123');
-                }}
-                className="w-full text-left px-3 py-2 bg-neublue/30 text-black border-2 border-black rounded-lg hover:bg-neublue/55 hover:shadow-[1px_1px_0px_rgba(0,0,0,1)] active:shadow-none transition-all font-mono text-[9px] font-extrabold cursor-pointer"
-              >
-                Sireesha V (Roll: 24AK1A33D9)
-              </button>
-            </div>
           </div>
         </div>
 
