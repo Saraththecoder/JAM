@@ -11,6 +11,19 @@ export default function AnimatedHero() {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const descRef = useRef<HTMLParagraphElement>(null);
 
+  const renderLetters = (text: string) => {
+    return text.split('').map((char, index) => {
+      if (char === ' ') {
+        return <span key={index} className="inline-block">&nbsp;</span>;
+      }
+      return (
+        <span key={index} className="animate-letter inline-block transform origin-bottom opacity-0">
+          {char}
+        </span>
+      );
+    });
+  };
+
   useGSAP(() => {
     const runAnimation = () => {
       const tl = gsap.timeline({ defaults: { ease: 'power4.out' } });
@@ -21,21 +34,31 @@ export default function AnimatedHero() {
         { y: 0, opacity: 1, scale: 1, rotate: 0, duration: 0.6 }
       );
 
-      // 2. Title lines fade & slide up
-      const titleLines = titleRef.current?.querySelectorAll('.animate-line');
-      if (titleLines && titleLines.length > 0) {
-        tl.fromTo(titleLines,
-          { y: 50, opacity: 0 },
-          { y: 0, opacity: 1, duration: 0.75, stagger: 0.18 },
-          '-=0.35'
+      // 2. Title letter-by-letter springy slide up
+      const letters = titleRef.current?.querySelectorAll('.animate-letter');
+      if (letters && letters.length > 0) {
+        tl.fromTo(letters,
+          { y: 40, opacity: 0, rotate: 10 },
+          { y: 0, opacity: 1, rotate: 0, duration: 0.6, stagger: 0.03, ease: 'back.out(1.6)' },
+          '-=0.3'
         );
       }
 
-      // 3. Description fade & slide in
+      // 3. Digital Approval block pop and bounce entrance
+      const approvalBlock = titleRef.current?.querySelector('.animate-approval-block');
+      if (approvalBlock) {
+        tl.fromTo(approvalBlock,
+          { scale: 0.4, opacity: 0, rotate: -4 },
+          { scale: 1, opacity: 1, rotate: 0, duration: 0.85, ease: 'back.out(1.8)' },
+          '-=0.4'
+        );
+      }
+
+      // 4. Description fade & slide in
       tl.fromTo(descRef.current,
         { y: 25, opacity: 0 },
         { y: 0, opacity: 1, duration: 0.65 },
-        '-=0.45'
+        '-=0.5'
       );
     };
 
@@ -69,10 +92,12 @@ export default function AnimatedHero() {
         className="text-2xl min-[360px]:text-3xl sm:text-4xl md:text-5xl font-sans font-extrabold tracking-tight leading-[1.1] text-zinc-900"
       >
         <span className="block overflow-hidden py-1">
-          <span className="animate-line block">Instant Letters.</span>
+          <span className="block">
+            {renderLetters("Instant Letters.")}
+          </span>
         </span>
         <span className="block overflow-hidden py-1">
-          <span className="animate-line bg-black text-neuyellow px-2 py-0.5 inline-block border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,0.15)] rounded-lg mt-1 min-[360px]:mt-0">
+          <span className="animate-approval-block bg-black text-neuyellow px-3 py-1.5 inline-block border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,0.15)] rounded-lg mt-1 min-[360px]:mt-0 opacity-0 transform origin-center">
             Digital Approval.
           </span>
         </span>

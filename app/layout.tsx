@@ -30,7 +30,10 @@ export const metadata: Metadata = {
   keywords: ['AITS', 'letter automation', 'digital signature', 'leave request', 'student portal', 'Annamacharya', 'Tirupati'],
   authors: [{ name: 'AITS AI&ML Department' }],
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: 'any' }
+    ],
     shortcut: '/favicon.ico',
     apple: '/favicon.ico',
   },
