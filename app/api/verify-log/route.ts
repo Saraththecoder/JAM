@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { createHash } from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,11 +18,9 @@ export async function POST(request: NextRequest) {
       ip = ip.split(',')[0].trim();
     }
     
-    // Anonymize IP address slightly for privacy regulations (e.g. 192.168.1.145 -> 192.168.1.xxx)
-    const ipParts = ip.split('.');
-    if (ipParts.length === 4) {
-      ip = `${ipParts[0]}.${ipParts[1]}.${ipParts[2]}.xxx`;
-    }
+    // Hash IP address with SHA-256 to create a secure, uncrackable Node ID (e.g. Node #8F3D2A)
+    const hash = createHash('sha256').update(ip).digest('hex');
+    const nodeId = `Node #${hash.slice(0, 6).toUpperCase()}`;
 
     const userAgent = request.headers.get('user-agent') || 'Unknown Browser';
 
@@ -30,7 +29,7 @@ export async function POST(request: NextRequest) {
       .from('verification_scans')
       .insert({
         letter_id: letterId,
-        ip_address: ip,
+        ip_address: nodeId,
         user_agent: userAgent,
       });
 

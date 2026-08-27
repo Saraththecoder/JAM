@@ -236,7 +236,7 @@ export default function VerificationPage() {
               </p>
               {lastScan && (
                 <p className="text-[10px] text-zinc-650 font-bold">
-                  Last verified check: {new Date(lastScan.scanned_at).toLocaleString('en-IN')} (IP Node: {lastScan.ip_address})
+                  Last verified check: {new Date(lastScan.scanned_at).toLocaleString('en-IN')} ({lastScan.ip_address})
                 </p>
               )}
             </div>
