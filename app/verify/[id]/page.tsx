@@ -40,6 +40,8 @@ export default function VerificationPage() {
   const [letter, setLetter] = useState<Letter | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [scanCount, setScanCount] = useState<number | null>(null);
+  const [lastScan, setLastScan] = useState<{ scanned_at: string; ip_address: string } | null>(null);
 
   const supabase = createClient();
 
@@ -76,6 +78,22 @@ export default function VerificationPage() {
         }
 
         setLetter(data as any);
+
+        // Securely log the QR scan check and retrieve aggregate count/timestamps
+        try {
+          const logRes = await fetch('/api/verify-log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ letterId }),
+          });
+          if (logRes.ok) {
+            const logData = await logRes.json();
+            setScanCount(logData.totalScans);
+            setLastScan(logData.lastScan);
+          }
+        } catch (logErr) {
+          console.error('Failed to log verification scan:', logErr);
+        }
       } catch (err: any) {
         console.error('Verification error:', err);
         setError(err.message || 'Could not verify document.');
@@ -206,6 +224,23 @@ export default function VerificationPage() {
               {letter.generated_body}
             </div>
           </div>
+
+          {/* Verification Security Audit Card */}
+          {scanCount !== null && (
+            <div className="p-4 bg-neublue/10 rounded-xl border-2 border-black space-y-2 text-xs font-bold text-black shadow-[2px_2px_0px_rgba(0,0,0,1)]">
+              <h4 className="text-[10px] font-mono text-zinc-550 uppercase tracking-widest flex items-center gap-1">
+                🔒 Secure Verification Auditing
+              </h4>
+              <p>
+                This document has been verified <span className="bg-neublue text-black px-1.5 py-0.5 rounded border border-black">{scanCount}</span> times via secure nodes.
+              </p>
+              {lastScan && (
+                <p className="text-[10px] text-zinc-650 font-bold">
+                  Last verified check: {new Date(lastScan.scanned_at).toLocaleString('en-IN')} (IP Node: {lastScan.ip_address})
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </div>
       <p className="text-[10px] font-mono text-black/80 mt-6 text-center font-bold">
