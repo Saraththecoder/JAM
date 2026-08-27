@@ -12,30 +12,43 @@ export default function AnimatedHero() {
   const descRef = useRef<HTMLParagraphElement>(null);
 
   useGSAP(() => {
-    const tl = gsap.timeline({ defaults: { ease: 'power4.out' } });
+    const runAnimation = () => {
+      const tl = gsap.timeline({ defaults: { ease: 'power4.out' } });
 
-    // 1. Badge slide in & rotate slightly
-    tl.fromTo(badgeRef.current,
-      { y: -30, opacity: 0, scale: 0.8, rotate: -3 },
-      { y: 0, opacity: 1, scale: 1, rotate: 0, duration: 0.6 }
-    );
-
-    // 2. Title lines fade & slide up
-    const titleLines = titleRef.current?.querySelectorAll('.animate-line');
-    if (titleLines && titleLines.length > 0) {
-      tl.fromTo(titleLines,
-        { y: 50, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.75, stagger: 0.18 },
-        '-=0.35'
+      // 1. Badge slide in & rotate slightly
+      tl.fromTo(badgeRef.current,
+        { y: -30, opacity: 0, scale: 0.8, rotate: -3 },
+        { y: 0, opacity: 1, scale: 1, rotate: 0, duration: 0.6 }
       );
-    }
 
-    // 3. Description fade & slide in
-    tl.fromTo(descRef.current,
-      { y: 25, opacity: 0 },
-      { y: 0, opacity: 1, duration: 0.65 },
-      '-=0.45'
-    );
+      // 2. Title lines fade & slide up
+      const titleLines = titleRef.current?.querySelectorAll('.animate-line');
+      if (titleLines && titleLines.length > 0) {
+        tl.fromTo(titleLines,
+          { y: 50, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.75, stagger: 0.18 },
+          '-=0.35'
+        );
+      }
+
+      // 3. Description fade & slide in
+      tl.fromTo(descRef.current,
+        { y: 25, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.65 },
+        '-=0.45'
+      );
+    };
+
+    if (typeof window !== 'undefined') {
+      if ((window as any).__splashScreenComplete) {
+        runAnimation();
+      } else {
+        window.addEventListener('splashScreenComplete', runAnimation);
+        return () => window.removeEventListener('splashScreenComplete', runAnimation);
+      }
+    } else {
+      runAnimation();
+    }
   }, { scope: containerRef });
 
   return (

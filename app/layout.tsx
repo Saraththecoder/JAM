@@ -27,15 +27,20 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: { default: 'JAM — Just A Minute', template: '%s | JAM' },
   description: 'Instant academic letter automation for AITS students and faculty. Submit leave requests, outing passes, and event conduct letters — digitally signed in minutes.',
-  keywords: ['AITS', 'letter automation', 'digital signature', 'leave request', 'student portal'],
+  keywords: ['AITS', 'letter automation', 'digital signature', 'leave request', 'student portal', 'Annamacharya', 'Tirupati'],
   authors: [{ name: 'AITS AI&ML Department' }],
+  icons: {
+    icon: '/favicon.ico',
+    shortcut: '/favicon.ico',
+    apple: '/favicon.ico',
+  },
   openGraph: {
     title: 'JAM — Just A Minute',
-    description: 'Automated letter routing, digital signing, and real-time approval for AITS.',
+    description: 'Automated letter routing, digital signing, and real-time approval for AITS Tirupati.',
     type: 'website',
     locale: 'en_IN',
   },
-  robots: { index: false, follow: false }, // Private institution portal
+  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({

@@ -19,6 +19,10 @@ export default function SplashScreen() {
     const tl = gsap.timeline({
       onComplete: () => {
         setVisible(false); // remove from DOM
+        if (typeof window !== 'undefined') {
+          (window as any).__splashScreenComplete = true;
+          window.dispatchEvent(new CustomEvent('splashScreenComplete'));
+        }
       }
     });
 
