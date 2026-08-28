@@ -75,11 +75,20 @@ export default function VerificationPage() {
     setDownloadError(null);
     try {
       const res = await fetch(`/api/download-letter/${letterId}`);
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to generate download link.');
-      }
+      const contentType = res.headers.get('content-type');
       
+      if (!res.ok) {
+        let errorMsg = 'Failed to generate download link.';
+        if (contentType && contentType.includes('application/json')) {
+          const data = await res.json();
+          errorMsg = data.error || errorMsg;
+        } else {
+          errorMsg = `Server error (${res.status}): ${res.statusText || 'Verify your environment config (Supabase Service Role Key).'}`;
+        }
+        throw new Error(errorMsg);
+      }
+
+      const data = await res.json();
       // Trigger download using the generated signed URL
       window.open(data.signedUrl, '_blank');
     } catch (err: any) {

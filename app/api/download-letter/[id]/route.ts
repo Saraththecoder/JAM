@@ -13,6 +13,7 @@ export async function GET(
       return NextResponse.json({ error: 'Letter ID is required' }, { status: 400 });
     }
 
+    // 1. Rate Limiting Check
     const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
     const limitCheck = rateLimit(ip, 20, 60 * 1000); // 20 downloads per minute
     if (!limitCheck.success) {
@@ -22,13 +23,20 @@ export async function GET(
       );
     }
 
-    const supabase = await createClientServer();
-    const adminClient = createAdminClient();
-    
-    // 1. Get current logged-in user (optional)
-    const { data: { user } } = await supabase.auth.getUser();
+    // 2. Defensive Environment Variables Check
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    // 2. Query the letter using admin client to read status and storage path
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json(
+        { error: 'Server configuration error: SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL is missing in environment variables. Please check your dashboard settings.' },
+        { status: 500 }
+      );
+    }
+
+    const adminClient = createAdminClient();
+
+    // 3. Query the letter status and storage path using admin client (bypasses RLS)
     const { data: letter, error: letterError } = await adminClient
       .from('letters')
       .select('status, student_id, faculty_id, mentor_id, hod_id, pdf_storage_path')
@@ -39,14 +47,26 @@ export async function GET(
       return NextResponse.json({ error: 'Letter not found' }, { status: 404 });
     }
 
-    // 3. Check authorization: public allowed if approved, otherwise must be student, mentor, HOD, or original recipient
+    // 4. Check authorization: public allowed if approved, otherwise must be participant
     const isApproved = letter.status === 'approved';
-    const isParticipant = user && (
-      user.id === letter.student_id || 
-      user.id === letter.faculty_id || 
-      user.id === letter.mentor_id || 
-      user.id === letter.hod_id
-    );
+    let isParticipant = false;
+
+    if (!isApproved) {
+      // Only invoke cookie-dependent createClientServer if not approved to prevent static context issues
+      try {
+        const supabase = await createClientServer();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          isParticipant = 
+            user.id === letter.student_id || 
+            user.id === letter.faculty_id || 
+            user.id === letter.mentor_id || 
+            user.id === letter.hod_id;
+        }
+      } catch (authError) {
+        console.error('Failed to resolve dynamic server session:', authError);
+      }
+    }
 
     if (!isApproved && !isParticipant) {
       return NextResponse.json({ error: 'Unauthorized or Forbidden' }, { status: 403 });
@@ -59,7 +79,7 @@ export async function GET(
       );
     }
 
-    // 4. Generate a signed read URL expiring in 60 seconds using the admin client
+    // 5. Generate signed read URL expiring in 60 seconds
     const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
       .from('letters')
       .createSignedUrl(letter.pdf_storage_path, 60);
@@ -67,7 +87,7 @@ export async function GET(
     if (signedUrlError || !signedUrlData?.signedUrl) {
       console.error('Error generating signed URL:', signedUrlError);
       return NextResponse.json(
-        { error: 'Failed to generate download URL' },
+        { error: 'Failed to generate download URL from storage.' },
         { status: 500 }
       );
     }
@@ -81,4 +101,3 @@ export async function GET(
     );
   }
 }
-
