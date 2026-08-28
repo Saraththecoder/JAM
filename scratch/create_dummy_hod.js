@@ -29,13 +29,21 @@ const supabase = createClient(url, serviceRoleKey, {
 });
 
 async function main() {
-  const email = 'hod.aiml@aits-tpt.edu.in';
-  const password = 'hodpassword123';
-  const fullName = 'Dr. M. Sreenivasulu';
+  const email = process.env.SEED_HOD_EMAIL || env['SEED_HOD_EMAIL'];
+  const password = process.env.SEED_HOD_PASSWORD || env['SEED_HOD_PASSWORD'];
+  const fullName = process.env.SEED_HOD_NAME || env['SEED_HOD_NAME'] || 'Dr. M. Sreenivasulu';
   const designation = 'HOD';
-  const departmentId = '74889c25-bb35-430c-ab22-0d12759e663a'; // AI&ML department ID
+  const departmentId = process.env.SEED_HOD_DEPT_ID || env['SEED_HOD_DEPT_ID'] || '74889c25-bb35-430c-ab22-0d12759e663a'; // AI&ML department ID
 
-  console.log(`Creating dummy HOD account: ${email}...`);
+  if (!email || !password) {
+    console.error("\n[Error] Missing HOD credentials.");
+    console.error("Please add the following variables to your .env.local file:");
+    console.error("  SEED_HOD_EMAIL=your-hod-email@aits-tpt.edu.in");
+    console.error("  SEED_HOD_PASSWORD=securehodpassword123\n");
+    process.exit(1);
+  }
+
+  console.log(`Creating HOD account: ${email}...`);
 
   // 1. Create Auth user
   let userId;
@@ -90,9 +98,9 @@ async function main() {
   }
 
   console.log("\n=============================================");
-  console.log("Dummy HOD Account Created & Approved Successfully!");
-  console.log("Email:    hod.aiml@aits-tpt.edu.in");
-  console.log("Password: hodpassword123");
+  console.log("HOD Account Created & Approved Successfully!");
+  console.log(`Email:       ${email}`);
+  console.log(`Password:    ******** (configured in env)`);
   console.log("Designation: HOD");
   console.log("=============================================\n");
 }

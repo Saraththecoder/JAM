@@ -1,6 +1,6 @@
 role,name,identifier,password,designation
-student,Rahul Reddy,24AK1A33D8,studentpwd123,
-student,Sireesha V,24AK1A33D9,studentpwd123,
-student,Harish Naik,24AK1A33E0,studentpwd123,
-faculty,Dr. K. Ramesh,ramesh.k@aits-tpt.edu.in,facultypwd123,Professor
-faculty,Smt. G. Sumathi,sumathi.g@aits-tpt.edu.in,facultypwd123,Class Mentor
+student,Rahul Reddy,24AK1A33D8,<SET_SECURE_PASSWORD>,
+student,Sireesha V,24AK1A33D9,<SET_SECURE_PASSWORD>,
+student,Harish Naik,24AK1A33E0,<SET_SECURE_PASSWORD>,
+faculty,Dr. K. Ramesh,ramesh.k@aits-tpt.edu.in,<SET_SECURE_PASSWORD>,Professor
+faculty,Smt. G. Sumathi,sumathi.g@aits-tpt.edu.in,<SET_SECURE_PASSWORD>,Class Mentor
