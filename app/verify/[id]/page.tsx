@@ -77,11 +77,13 @@ export default function VerificationPage() {
       const res = await fetch(`/api/download-letter/${letterId}`);
       const contentType = res.headers.get('content-type');
       
-      if (!res.ok) {
+      if (!res.ok || !contentType || !contentType.includes('application/json')) {
         let errorMsg = 'Failed to generate download link.';
         if (contentType && contentType.includes('application/json')) {
           const data = await res.json();
           errorMsg = data.error || errorMsg;
+        } else if (res.ok && contentType && contentType.includes('text/html')) {
+          errorMsg = 'Failed to fetch PDF path: Redirected to login page or template not found. Please log in or check permission scopes.';
         } else {
           errorMsg = `Server error (${res.status}): ${res.statusText || 'Verify your environment config (Supabase Service Role Key).'}`;
         }

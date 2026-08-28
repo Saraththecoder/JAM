@@ -45,7 +45,8 @@ export async function proxy(request: NextRequest) {
     path.startsWith('/login') ||
     path.startsWith('/register') ||
     path.startsWith('/verify') ||
-    path.startsWith('/api/auth');
+    path.startsWith('/api/auth') ||
+    path.startsWith('/api/download-letter');
 
   // 1. Unauthenticated users: redirect to login if attempting private path
   if (!user && !isPublicPath) {
