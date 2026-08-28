@@ -316,10 +316,6 @@ export default function VerificationPage() {
                         </p>
                       </div>
                     )}
-                    <div className="mt-3 pt-3 border-t border-black/20 text-[8px] font-mono text-zinc-700 space-y-1">
-                      <p className="break-all">Registry Hash: <span className="font-extrabold text-black font-mono">{letter.pdf_hash}</span></p>
-                      <p className="break-all">Uploaded Hash: <span className="font-extrabold text-black font-mono">{computedHash}</span></p>
-                    </div>
                   </div>
                 </div>
               )}
