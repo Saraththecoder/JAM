@@ -46,6 +46,8 @@ export default function VerificationPage() {
   const [integrityStatus, setIntegrityStatus] = useState<'idle' | 'success' | 'failed'>('idle');
   const [computedHash, setComputedHash] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState<boolean>(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const supabase = createClient();
 
@@ -65,6 +67,26 @@ export default function VerificationPage() {
     } catch (e) {
       console.error('Integrity verification failed:', e);
       setIntegrityStatus('failed');
+    }
+  };
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      const res = await fetch(`/api/download-letter/${letterId}`);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to generate download link.');
+      }
+      
+      // Trigger download using the generated signed URL
+      window.open(data.signedUrl, '_blank');
+    } catch (err: any) {
+      console.error('Download error:', err);
+      setDownloadError(err.message || 'Could not download PDF.');
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -251,6 +273,38 @@ export default function VerificationPage() {
                   </li>
                 </ul>
               </div>
+
+              {/* Download Original Signed PDF */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-neuyellow/10 p-4 border-2 border-black rounded-2xl shadow-[2px_2px_0px_rgba(0,0,0,1)] animate-duration-500">
+                <div>
+                  <p className="text-xs font-extrabold text-black">Download Original Signed PDF</p>
+                  <p className="text-[10px] text-zinc-600 font-semibold mt-0.5">Retrieve the authentic PDF file directly from the database registry.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className="w-full sm:w-auto px-4 py-2 text-xs font-black bg-neuyellow border-2 border-black rounded-xl shadow-[2px_2px_0px_rgba(0,0,0,1)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_rgba(0,0,0,1)] active:translate-x-0 active:translate-y-0 active:shadow-none transition-all disabled:opacity-50 cursor-pointer shrink-0 inline-flex items-center justify-center gap-1.5"
+                >
+                  {downloading ? (
+                    <>
+                      <Clock className="w-3.5 h-3.5 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-3.5 h-3.5" />
+                      Download PDF
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {downloadError && (
+                <div className="p-3 bg-neured/10 border-2 border-black rounded-xl text-[10px] text-black font-bold">
+                  {downloadError}
+                </div>
+              )}
               
               <div 
                 className={`p-6 border-2 border-dashed rounded-2xl text-center transition-all ${

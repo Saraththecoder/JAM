@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClientServer } from '@/lib/supabase/server';
+import { createClientServer, createAdminClient } from '@/lib/supabase/server';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function GET(
   request: NextRequest,
@@ -12,18 +13,25 @@ export async function GET(
       return NextResponse.json({ error: 'Letter ID is required' }, { status: 400 });
     }
 
-    const supabase = await createClientServer();
-    
-    // 1. Get current logged-in user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
+    const limitCheck = rateLimit(ip, 20, 60 * 1000); // 20 downloads per minute
+    if (!limitCheck.success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please wait a minute before downloading again.' },
+        { status: 429 }
+      );
     }
 
-    // 2. Query the letter and verify the user is either the student or the faculty member
-    const { data: letter, error: letterError } = await supabase
+    const supabase = await createClientServer();
+    const adminClient = createAdminClient();
+    
+    // 1. Get current logged-in user (optional)
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // 2. Query the letter using admin client to read status and storage path
+    const { data: letter, error: letterError } = await adminClient
       .from('letters')
-      .select('student_id, faculty_id, pdf_storage_path')
+      .select('status, student_id, faculty_id, mentor_id, hod_id, pdf_storage_path')
       .eq('id', id)
       .single();
 
@@ -31,8 +39,17 @@ export async function GET(
       return NextResponse.json({ error: 'Letter not found' }, { status: 404 });
     }
 
-    if (letter.student_id !== user.id && letter.faculty_id !== user.id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    // 3. Check authorization: public allowed if approved, otherwise must be student, mentor, HOD, or original recipient
+    const isApproved = letter.status === 'approved';
+    const isParticipant = user && (
+      user.id === letter.student_id || 
+      user.id === letter.faculty_id || 
+      user.id === letter.mentor_id || 
+      user.id === letter.hod_id
+    );
+
+    if (!isApproved && !isParticipant) {
+      return NextResponse.json({ error: 'Unauthorized or Forbidden' }, { status: 403 });
     }
 
     if (!letter.pdf_storage_path) {
@@ -42,8 +59,8 @@ export async function GET(
       );
     }
 
-    // 3. Generate a signed read URL expiring in 60 seconds
-    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+    // 4. Generate a signed read URL expiring in 60 seconds using the admin client
+    const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
       .from('letters')
       .createSignedUrl(letter.pdf_storage_path, 60);
 
@@ -64,3 +81,4 @@ export async function GET(
     );
   }
 }
+
