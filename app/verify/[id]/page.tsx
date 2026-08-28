@@ -239,6 +239,18 @@ export default function VerificationPage() {
               <h3 className="text-xs font-extrabold uppercase tracking-wider text-black flex items-center gap-1.5 font-sans">
                 <ShieldCheck className="w-4 h-4 text-black" /> Cryptographic Integrity Checker
               </h3>
+
+              <div className="p-4 bg-zinc-100 border-2 border-black rounded-2xl text-xs space-y-1.5 text-black font-semibold shadow-[2px_2px_0px_rgba(0,0,0,1)]">
+                <p className="font-extrabold uppercase tracking-wide text-[10px]">Verification Guidance</p>
+                <ul className="list-disc pl-4 space-y-1 text-zinc-700 text-[10.5px]">
+                  <li>
+                    <span className="font-bold text-black">Physical / Paper Check:</span> Compare the student details, signatures log, and document text body displayed on this screen directly against the printed letter. Any text mismatch indicates tampering.
+                  </li>
+                  <li>
+                    <span className="font-bold text-black">Digital PDF Check:</span> If you received a digital PDF file, drag and drop it into the box below to run an instant SHA-256 cryptographic check confirming it has not been modified.
+                  </li>
+                </ul>
+              </div>
               
               <div 
                 className={`p-6 border-2 border-dashed rounded-2xl text-center transition-all ${
