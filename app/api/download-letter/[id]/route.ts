@@ -39,7 +39,7 @@ export async function GET(
     // 3. Query the letter status and storage path using admin client (bypasses RLS)
     const { data: letter, error: letterError } = await adminClient
       .from('letters')
-      .select('status, student_id, faculty_id, mentor_id, hod_id, pdf_storage_path')
+      .select('status, student_id, faculty_id, mentor_id, hod_id, pdf_storage_path, reference_number')
       .eq('id', id)
       .single();
 
@@ -79,10 +79,16 @@ export async function GET(
       );
     }
 
-    // 5. Generate signed read URL expiring in 60 seconds
+    // 5. Generate signed read URL expiring in 60 seconds (forcing direct attachment download)
+    const safeFilename = letter.reference_number
+      ? `${letter.reference_number.replace(/\//g, '_')}.pdf`
+      : 'letter.pdf';
+
     const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
       .from('letters')
-      .createSignedUrl(letter.pdf_storage_path, 60);
+      .createSignedUrl(letter.pdf_storage_path, 60, {
+        download: safeFilename
+      });
 
     if (signedUrlError || !signedUrlData?.signedUrl) {
       console.error('Error generating signed URL:', signedUrlError);

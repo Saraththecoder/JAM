@@ -91,8 +91,14 @@ export default function VerificationPage() {
       }
 
       const data = await res.json();
-      // Trigger download using the generated signed URL
-      window.open(data.signedUrl, '_blank');
+      
+      // Trigger programmatic download of the file
+      const link = document.createElement('a');
+      link.href = data.signedUrl;
+      link.setAttribute('download', ''); // Browser honors attachment header filename
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (err: any) {
       console.error('Download error:', err);
       setDownloadError(err.message || 'Could not download PDF.');
