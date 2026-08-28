@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClientServer, createAdminClient } from '@/lib/supabase/server';
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts, degrees } from 'pdf-lib';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 // Word-wrap function based on pdf-lib font metrics
 function wrapText(text: string, maxWidth: number, font: any, fontSize: number): string[] {
@@ -207,6 +208,31 @@ export async function POST(request: NextRequest) {
     const grayColor = rgb(0.4, 0.4, 0.4);
     const blackColor = rgb(0.1, 0.1, 0.1);
     const borderCol = rgb(0.8, 0.8, 0.8);
+
+    // --- RENDER DYNAMIC WATERMARK BACKGROUND ---
+    const watermarkText = `${refNumber}  •  VERIFIED DOCUMENT`;
+    const watermarkFont = helveticaBold;
+    const watermarkFontSize = 11;
+    const watermarkColor = rgb(0.7, 0.7, 0.7);
+    const watermarkOpacity = 0.12;
+
+    // Draw diagonal watermarks in a 3x2 grid to cover the page background under the text
+    const cols = [60, 320];
+    const rows = [200, 400, 600];
+
+    for (const cx of cols) {
+      for (const ry of rows) {
+        page.drawText(watermarkText, {
+          x: cx,
+          y: ry,
+          size: watermarkFontSize,
+          font: watermarkFont,
+          color: watermarkColor,
+          rotate: degrees(30),
+          opacity: watermarkOpacity,
+        });
+      }
+    }
 
     // Margins and dimensions
     const margin = 50;
@@ -447,7 +473,8 @@ export async function POST(request: NextRequest) {
 
     // Save PDF as bytes
     const pdfBytes = await pdfDoc.save();
-
+    const pdfHash = crypto.createHash('sha256').update(Buffer.from(pdfBytes)).digest('hex');
+ 
     // 6. Upload compiled PDF to private 'letters' bucket
     const pdfPath = `${letterId}.pdf`;
     
@@ -457,7 +484,7 @@ export async function POST(request: NextRequest) {
         contentType: 'application/pdf',
         upsert: true,
       });
-
+ 
     if (uploadError) {
       console.error('PDF upload error:', uploadError);
       return NextResponse.json(
@@ -465,7 +492,7 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
-
+ 
     // 7. Update letters record in the database
     const updatePayload = {
       status: 'approved',
@@ -473,6 +500,7 @@ export async function POST(request: NextRequest) {
       reference_number: refNumber,
       mentor_signed_at: letter.mentor_signed_at || new Date().toISOString(),
       hod_signed_at: letter.hod_id ? new Date().toISOString() : null,
+      pdf_hash: pdfHash,
     };
 
     const { error: updateError } = await adminClient

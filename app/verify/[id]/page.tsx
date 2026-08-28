@@ -13,6 +13,7 @@ interface Letter {
   reference_number: string | null;
   mentor_signed_at: string | null;
   hod_signed_at: string | null;
+  pdf_hash: string | null;
   letter_types: {
     name: string;
   };
@@ -40,10 +41,32 @@ export default function VerificationPage() {
   const [letter, setLetter] = useState<Letter | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [scanCount, setScanCount] = useState<number | null>(null);
-  const [lastScan, setLastScan] = useState<{ scanned_at: string; ip_address: string } | null>(null);
+
+  // Cryptographic integrity check states
+  const [integrityStatus, setIntegrityStatus] = useState<'idle' | 'success' | 'failed'>('idle');
+  const [computedHash, setComputedHash] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState<boolean>(false);
 
   const supabase = createClient();
+
+  const handleFileVerification = async (file: File) => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const hashBuffer = await window.crypto.subtle.digest('SHA-256', arrayBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      setComputedHash(hashHex);
+      if (hashHex === letter?.pdf_hash) {
+        setIntegrityStatus('success');
+      } else {
+        setIntegrityStatus('failed');
+      }
+    } catch (e) {
+      console.error('Integrity verification failed:', e);
+      setIntegrityStatus('failed');
+    }
+  };
 
   useEffect(() => {
     async function verifyDocument() {
@@ -61,6 +84,7 @@ export default function VerificationPage() {
             reference_number,
             mentor_signed_at,
             hod_signed_at,
+            pdf_hash,
             letter_types (name),
             student:student_id (full_name, roll_number, departments (name)),
             mentor:mentor_id (full_name, designation),
@@ -78,22 +102,6 @@ export default function VerificationPage() {
         }
 
         setLetter(data as any);
-
-        // Securely log the QR scan check and retrieve aggregate count/timestamps
-        try {
-          const logRes = await fetch('/api/verify-log', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ letterId }),
-          });
-          if (logRes.ok) {
-            const logData = await logRes.json();
-            setScanCount(logData.totalScans);
-            setLastScan(logData.lastScan);
-          }
-        } catch (logErr) {
-          console.error('Failed to log verification scan:', logErr);
-        }
       } catch (err: any) {
         console.error('Verification error:', err);
         setError(err.message || 'Could not verify document.');
@@ -225,19 +233,83 @@ export default function VerificationPage() {
             </div>
           </div>
 
-          {/* Verification Security Audit Card */}
-          {scanCount !== null && (
-            <div className="p-4 bg-neublue/10 rounded-xl border-2 border-black space-y-2 text-xs font-bold text-black shadow-[2px_2px_0px_rgba(0,0,0,1)]">
-              <h4 className="text-[10px] font-mono text-zinc-550 uppercase tracking-widest flex items-center gap-1">
-                🔒 Secure Verification Auditing
-              </h4>
-              <p>
-                This document has been verified <span className="bg-neublue text-black px-1.5 py-0.5 rounded border border-black">{scanCount}</span> times via secure nodes.
-              </p>
-              {lastScan && (
-                <p className="text-[10px] text-zinc-650 font-bold">
-                  Last verified check: {new Date(lastScan.scanned_at).toLocaleString('en-IN')} ({lastScan.ip_address})
-                </p>
+          {/* Cryptographic Checksum Check */}
+          {letter.pdf_hash && (
+            <div className="pt-6 border-t-2 border-dashed border-black/35 space-y-4">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-black flex items-center gap-1.5 font-sans">
+                <ShieldCheck className="w-4 h-4 text-black" /> Cryptographic Integrity Checker
+              </h3>
+              
+              <div 
+                className={`p-6 border-2 border-dashed rounded-2xl text-center transition-all ${
+                  dragActive ? 'bg-neuyellow/10 border-black scale-[0.99] shadow-inner' : 'bg-zinc-50 border-black/30 hover:border-black'
+                }`}
+                onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+                onDragLeave={() => setDragActive(false)}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  setDragActive(false);
+                  const files = e.dataTransfer.files;
+                  if (files && files.length > 0) {
+                    await handleFileVerification(files[0]);
+                  }
+                }}
+              >
+                <div className="flex flex-col items-center gap-2">
+                  <FileText className="w-8 h-8 text-black/50" />
+                  <p className="text-[11px] text-zinc-700 font-bold">
+                    Drag and drop the downloaded letter PDF here, or{' '}
+                    <label className="text-black underline cursor-pointer hover:text-zinc-600">
+                      browse
+                      <input 
+                        type="file" 
+                        accept="application/pdf" 
+                        className="hidden" 
+                        onChange={async (e) => {
+                          const files = e.target.files;
+                          if (files && files.length > 0) {
+                            await handleFileVerification(files[0]);
+                          }
+                        }}
+                      />
+                    </label>
+                  </p>
+                  <p className="text-[9px] text-zinc-500 font-mono">Accepts PDF format only</p>
+                </div>
+              </div>
+
+              {/* Status indicator */}
+              {integrityStatus !== 'idle' && (
+                <div className={`p-4 rounded-xl border-2 border-black flex items-start gap-3 shadow-[3px_3px_0px_rgba(0,0,0,1)] ${
+                  integrityStatus === 'success' ? 'bg-neugreen/30' : 'bg-neured/30'
+                }`}>
+                  {integrityStatus === 'success' ? (
+                    <ShieldCheck className="w-5 h-5 text-black shrink-0 mt-0.5" />
+                  ) : (
+                    <ShieldAlert className="w-5 h-5 text-black shrink-0 mt-0.5" />
+                  )}
+                  <div className="text-xs text-black font-bold flex-1">
+                    {integrityStatus === 'success' ? (
+                      <div>
+                        <p className="font-extrabold uppercase tracking-wide">Integrity Verified</p>
+                        <p className="text-[10px] text-black/80 font-medium mt-0.5">
+                          The file is authentic. Its SHA-256 checksum matches the signed database registry hash exactly.
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="font-extrabold uppercase tracking-wide">Checksum Mismatch</p>
+                        <p className="text-[10px] text-black/80 font-medium mt-0.5">
+                          The uploaded PDF file is modified, corrupted, or has been tampered with.
+                        </p>
+                      </div>
+                    )}
+                    <div className="mt-3 pt-3 border-t border-black/20 text-[8px] font-mono text-zinc-700 space-y-1">
+                      <p className="break-all">Registry Hash: <span className="font-extrabold text-black font-mono">{letter.pdf_hash}</span></p>
+                      <p className="break-all">Uploaded Hash: <span className="font-extrabold text-black font-mono">{computedHash}</span></p>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}

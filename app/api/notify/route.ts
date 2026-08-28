@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/server';
+import { createClientServer, createAdminClient } from '@/lib/supabase/server';
 import { sendEmail } from '@/lib/email';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
+    const limitCheck = rateLimit(ip, 15, 60 * 1000); // 15 requests per minute
+    if (!limitCheck.success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please wait a minute before triggering email notifications.' },
+        { status: 429 }
+      );
+    }
+
+    const supabase = await createClientServer();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { letterId, type, rejectionReason } = await request.json();
 
     if (!letterId || !type) {
@@ -36,6 +52,17 @@ export async function POST(request: NextRequest) {
     }
 
     const castLetter = letter as any;
+
+    // Check authorization: must be student_id, mentor_id, hod_id, or faculty_id
+    if (
+      user.id !== castLetter.student_id &&
+      user.id !== castLetter.mentor_id &&
+      user.id !== castLetter.hod_id &&
+      user.id !== castLetter.faculty_id
+    ) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const origin = request.nextUrl.origin || 'http://localhost:3000';
     const letterTypeName = castLetter.letter_types?.name || 'Academic Letter';
     const studentName = castLetter.student?.full_name || 'Student';

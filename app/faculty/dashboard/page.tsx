@@ -73,10 +73,92 @@ export default function FacultyDashboard() {
 
   // Signature update states
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [sigUploadMode, setSigUploadMode] = useState<'upload' | 'draw'>('upload');
   const [newSignatureFile, setNewSignatureFile] = useState<File | null>(null);
   const [uploadingSignature, setUploadingSignature] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#000000';
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    let clientX = 0;
+    let clientY = 0;
+
+    if ('touches' in e) {
+      e.preventDefault();
+      if (e.touches.length === 0) return;
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
+
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    setIsDrawing(true);
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+
+    let clientX = 0;
+    let clientY = 0;
+
+    if ('touches' in e) {
+      e.preventDefault();
+      if (e.touches.length === 0) return;
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+
+    const x = (clientX - rect.left) * scaleX;
+    const y = (clientY - rect.top) * scaleY;
+
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
 
   // HOD Admin Database tab states
   const [activeTab, setActiveTab] = useState<'queue' | 'database'>('queue');
@@ -350,11 +432,39 @@ export default function FacultyDashboard() {
 
   const handleSignatureUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSignatureFile || !profile) return;
+    if (!profile) return;
 
-    if (newSignatureFile.type !== 'image/png') {
-      setUploadError('Only PNG format is supported for e-signatures.');
-      return;
+    let base64Data = '';
+    let fileType = 'image/png';
+
+    if (sigUploadMode === 'upload') {
+      if (!newSignatureFile) return;
+      if (newSignatureFile.type !== 'image/png') {
+        setUploadError('Only PNG format is supported for e-signatures.');
+        return;
+      }
+      base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(newSignatureFile);
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Failed to read image file.'));
+      });
+    } else {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      // Verify canvas is not empty
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const buffer = new Uint32Array(ctx.getImageData(0, 0, canvas.width, canvas.height).data.buffer);
+      const isCanvasEmpty = !buffer.some(color => color !== 0);
+
+      if (isCanvasEmpty) {
+        setUploadError('Please draw your signature before saving.');
+        return;
+      }
+
+      base64Data = canvas.toDataURL('image/png');
     }
 
     setUploadingSignature(true);
@@ -362,41 +472,31 @@ export default function FacultyDashboard() {
     setUploadSuccess(false);
 
     try {
-      const reader = new FileReader();
-      reader.readAsDataURL(newSignatureFile);
-      reader.onloadend = async () => {
-        const base64Data = reader.result as string;
+      const res = await fetch('/api/upload-signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: profile.id,
+          fileBase64: base64Data,
+          fileType: fileType,
+        }),
+      });
 
-        const res = await fetch('/api/upload-signature', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: profile.id,
-            fileBase64: base64Data,
-            fileType: newSignatureFile.type,
-          }),
-        });
+      const result = await res.json();
 
-        const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error || 'Failed to upload signature.');
+      }
 
-        if (!res.ok) {
-          throw new Error(result.error || 'Failed to upload new signature.');
-        }
-
-        setUploadSuccess(true);
-        setUploadingSignature(false);
-        setNewSignatureFile(null);
-        
-        // Auto close modal
-        setTimeout(() => {
-          setShowUploadModal(false);
-          setUploadSuccess(false);
-        }, 2000);
-      };
-
-      reader.onerror = () => {
-        throw new Error('Failed to parse image file.');
-      };
+      setUploadSuccess(true);
+      setUploadingSignature(false);
+      setNewSignatureFile(null);
+      
+      // Auto close modal
+      setTimeout(() => {
+        setShowUploadModal(false);
+        setUploadSuccess(false);
+      }, 2000);
     } catch (err: any) {
       console.error(err);
       setUploadError(err.message || 'Failed to update signature.');
@@ -942,7 +1042,7 @@ export default function FacultyDashboard() {
             <div>
               <h3 className="text-lg font-bold text-zinc-900 dark:text-white">Update Digital Signature</h3>
               <p className="text-xs text-zinc-550 dark:text-zinc-450 mt-0.5">
-                Upload a new image of your signature. PNG format with transparent background is highly recommended.
+                Draw your signature on-screen or upload an image file. PNG format is recommended.
               </p>
             </div>
 
@@ -958,19 +1058,75 @@ export default function FacultyDashboard() {
               </div>
             ) : (
               <form onSubmit={handleSignatureUpdate} className="space-y-4">
-                <input
-                  type="file"
-                  accept="image/png"
-                  required
-                  onChange={(e) => {
-                    if (e.target.files && e.target.files.length > 0) {
-                      setNewSignatureFile(e.target.files[0]);
-                    }
-                  }}
-                  className="block w-full text-xs text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 dark:file:bg-zinc-800 dark:file:text-zinc-300"
-                />
+                {/* Tab selector */}
+                <div className="flex gap-2 border-b border-zinc-200 pb-2">
+                  <button
+                    type="button"
+                    onClick={() => { setSigUploadMode('upload'); setUploadError(null); }}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                      sigUploadMode === 'upload'
+                        ? 'bg-black text-white border-black'
+                        : 'bg-white text-zinc-655 border-zinc-200 hover:bg-zinc-50'
+                    }`}
+                  >
+                    Upload Image
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setSigUploadMode('draw'); setUploadError(null); }}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                      sigUploadMode === 'draw'
+                        ? 'bg-black text-white border-black'
+                        : 'bg-white text-zinc-655 border-zinc-200 hover:bg-zinc-50'
+                    }`}
+                  >
+                    Draw Signature
+                  </button>
+                </div>
 
-                <div className="flex justify-end gap-3 text-sm">
+                {sigUploadMode === 'upload' ? (
+                  <input
+                    type="file"
+                    accept="image/png"
+                    required={sigUploadMode === 'upload'}
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        setNewSignatureFile(e.target.files[0]);
+                      }
+                    }}
+                    className="block w-full text-xs text-zinc-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 dark:file:bg-zinc-800 dark:file:text-zinc-300"
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    <div className="relative border-2 border-black rounded-xl overflow-hidden bg-white shadow-[2px_2px_0px_rgba(0,0,0,1)]">
+                      <canvas
+                        ref={canvasRef}
+                        width={400}
+                        height={160}
+                        onMouseDown={startDrawing}
+                        onMouseMove={draw}
+                        onMouseUp={stopDrawing}
+                        onMouseLeave={stopDrawing}
+                        onTouchStart={startDrawing}
+                        onTouchMove={draw}
+                        onTouchEnd={stopDrawing}
+                        className="w-full h-40 bg-white cursor-crosshair touch-none"
+                      />
+                    </div>
+                    <div className="flex justify-between items-center text-[10px]">
+                      <span className="text-zinc-500 font-semibold font-mono">Use finger or mouse pointer to sign</span>
+                      <button
+                        type="button"
+                        onClick={clearCanvas}
+                        className="text-black font-extrabold underline hover:text-zinc-600 cursor-pointer"
+                      >
+                        Clear Canvas
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-3 text-sm pt-2">
                   <button
                     type="button"
                     onClick={() => {
@@ -978,14 +1134,14 @@ export default function FacultyDashboard() {
                       setNewSignatureFile(null);
                       setUploadError(null);
                     }}
-                    className="px-4 py-2 text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-850 rounded-xl font-semibold"
+                    className="px-4 py-2 border-2 border-black hover:bg-zinc-100 rounded-xl font-bold bg-white text-black shadow-[2px_2px_0px_rgba(0,0,0,1)] active:translate-x-0 active:translate-y-0 active:shadow-none hover:translate-x-[-1px] hover:translate-y-[-1px] transition-all cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    disabled={uploadingSignature || !newSignatureFile}
-                    className="px-4.5 py-2 text-white bg-indigo-650 hover:bg-indigo-700 rounded-xl font-bold disabled:opacity-50 inline-flex items-center gap-1.5"
+                    disabled={uploadingSignature || (sigUploadMode === 'upload' && !newSignatureFile)}
+                    className="px-4.5 py-2 text-white bg-indigo-650 hover:bg-indigo-700 rounded-xl font-bold disabled:opacity-50 inline-flex items-center gap-1.5 cursor-pointer"
                   >
                     {uploadingSignature ? (
                       <>

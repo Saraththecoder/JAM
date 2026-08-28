@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClientServer } from '@/lib/supabase/server';
 import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClientServer();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
     const limitCheck = rateLimit(ip, 15, 60 * 1000);
     if (!limitCheck.success) {
