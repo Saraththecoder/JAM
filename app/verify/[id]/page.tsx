@@ -114,30 +114,10 @@ export default function VerificationPage() {
       setError(null);
       try {
         const { data, error: fetchError } = await supabase
-          .from('letters')
-          .select(`
-            id,
-            created_at,
-            generated_body,
-            status,
-            reference_number,
-            mentor_signed_at,
-            hod_signed_at,
-            pdf_hash,
-            letter_types (name),
-            student:student_id (full_name, roll_number, departments (name)),
-            mentor:mentor_id (full_name, designation),
-            hod:hod_id (full_name, designation)
-          `)
-          .eq('id', letterId)
-          .single();
+          .rpc('verify_letter', { p_letter_id: letterId });
 
         if (fetchError || !data) {
           throw new Error('This document does not exist, is pending approval, or has been revoked.');
-        }
-
-        if (data.status !== 'approved') {
-          throw new Error('This document is not yet fully approved.');
         }
 
         setLetter(data as any);
