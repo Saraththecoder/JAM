@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClientServer, createAdminClient } from '@/lib/supabase/server';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
+    const limitCheck = rateLimit(ip, 10, 60 * 1000);
+    if (!limitCheck.success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please wait a minute before creating user accounts.' },
+        { status: 429 }
+      );
+    }
+
     const supabase = await createClientServer();
     const adminClient = createAdminClient();
 
@@ -87,9 +97,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, user: newUser.user });
+    return NextResponse.json({ success: true, user: { id: newUser.user.id, email: newUser.user.email } });
   } catch (error: any) {
     console.error('Unexpected admin create-user error:', error);
-    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

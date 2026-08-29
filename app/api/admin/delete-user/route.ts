@@ -1,8 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClientServer, createAdminClient } from '@/lib/supabase/server';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
+    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
+    const limitCheck = rateLimit(ip, 10, 60 * 1000);
+    if (!limitCheck.success) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please wait a minute before performing delete operations.' },
+        { status: 429 }
+      );
+    }
+
     const supabase = await createClientServer();
     const adminClient = createAdminClient();
 
@@ -63,12 +73,12 @@ export async function POST(request: NextRequest) {
 
     if (deleteError) {
       console.error('Admin deleteUser error:', deleteError);
-      return NextResponse.json({ error: deleteError.message || 'Failed to delete auth user.' }, { status: 500 });
+      return NextResponse.json({ error: 'Failed to delete user.' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Unexpected admin delete-user error:', error);
-    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

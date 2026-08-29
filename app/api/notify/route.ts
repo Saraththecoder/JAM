@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Unexpected notify API error:', error);
     return NextResponse.json(
-      { error: error?.message || 'Internal Server Error' },
+      { error: 'Internal Server Error' },
       { status: 500 }
     );
   }

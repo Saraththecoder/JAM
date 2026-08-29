@@ -90,7 +90,7 @@ Student's prompt / details: ${description}`;
   } catch (error: any) {
     console.error('Unexpected AI letter generation error:', error);
     return NextResponse.json(
-      { error: error?.message || 'Internal Server Error' },
+      { error: 'Internal Server Error' },
       { status: 500 }
     );
   }
