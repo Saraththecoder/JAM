@@ -20,6 +20,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Verify user role is student
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (profile?.role !== 'student') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { description, tone, openRouterKey } = await request.json();
 
     if (!openRouterKey) {
