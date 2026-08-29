@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClientServer, createAdminClient } from '@/lib/supabase/server';
-import { rateLimit } from '@/lib/rate-limit';
+import { createUserLimiter } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
-    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
-    const limitCheck = rateLimit(ip, 10, 60 * 1000);
+    const supabase = await createClientServer();
+    const { data: { user } } = await supabase.auth.getUser();
+    const identifier = user?.id || request.headers.get('x-forwarded-for') || '127.0.0.1';
+
+    const limitCheck = await createUserLimiter.limit(identifier);
     if (!limitCheck.success) {
       return NextResponse.json(
         { error: 'Too many requests. Please wait a minute before creating user accounts.' },
@@ -13,14 +16,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createClientServer();
-    const adminClient = createAdminClient();
-
-    // 1. Get current logged-in user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const adminClient = createAdminClient();
 
     // 2. Fetch profile and verify HOD status
     const { data: profile, error: profileError } = await adminClient
