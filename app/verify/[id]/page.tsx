@@ -57,7 +57,7 @@ export default function VerificationPage() {
       const hashBuffer = await window.crypto.subtle.digest('SHA-256', arrayBuffer);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      
+
       setComputedHash(hashHex);
       if (hashHex === letter?.pdf_hash) {
         setIntegrityStatus('success');
@@ -76,7 +76,7 @@ export default function VerificationPage() {
     try {
       const res = await fetch(`/api/download-letter/${letterId}`);
       const contentType = res.headers.get('content-type');
-      
+
       if (!res.ok || !contentType || !contentType.includes('application/json')) {
         let errorMsg = 'Failed to generate download link.';
         if (contentType && contentType.includes('application/json')) {
@@ -91,7 +91,7 @@ export default function VerificationPage() {
       }
 
       const data = await res.json();
-      
+
       // Trigger programmatic download of the file
       const link = document.createElement('a');
       link.href = data.signedUrl;
@@ -107,53 +107,39 @@ export default function VerificationPage() {
     }
   };
 
+  // --- UPDATED VERIFICATION LOGIC ---
+  // Uses the verify_letter() RPC only (the direct-table fallback was
+  // removed since anon can no longer read `letters` directly — that
+  // fallback could never succeed and only produced a misleading error).
+  // The RPC now returns `found` / `approved` / `status` fields so we can
+  // show the person an accurate reason instead of a generic message.
   useEffect(() => {
     async function verifyDocument() {
       if (!letterId) return;
       setLoading(true);
       setError(null);
       try {
-        let letterData: any = null;
-
-        // 1. Try verify_letter RPC function first
         const { data: rpcData, error: rpcError } = await supabase
           .rpc('verify_letter', { p_letter_id: letterId });
 
-        if (!rpcError && rpcData) {
-          letterData = rpcData;
-        } else {
-          // 2. Fallback to direct table query if RPC function is not migrated yet
-          const { data: directData, error: directError } = await supabase
-            .from('letters')
-            .select(`
-              id,
-              created_at,
-              generated_body,
-              status,
-              reference_number,
-              mentor_signed_at,
-              hod_signed_at,
-              pdf_hash,
-              letter_types (name),
-              student:student_id (full_name, roll_number, departments (name)),
-              mentor:mentor_id (full_name, designation),
-              hod:hod_id (full_name, designation)
-            `)
-            .eq('id', letterId)
-            .single();
-
-          if (directError || !directData) {
-            throw new Error('This document does not exist, is pending approval, or has been revoked.');
-          }
-
-          if (directData.status !== 'approved') {
-            throw new Error('This document is not yet fully approved.');
-          }
-
-          letterData = directData;
+        if (rpcError) {
+          // A real unexpected error (network, permissions, etc.) —
+          // not a "letter doesn't exist" case.
+          throw new Error('Something went wrong while verifying this document. Please try again.');
         }
 
-        setLetter(letterData as any);
+        if (!rpcData || rpcData.found === false) {
+          throw new Error('This document does not exist or the link is invalid.');
+        }
+
+        if (rpcData.approved === false) {
+          const statusLabel = rpcData.status
+            ? String(rpcData.status).replace(/_/g, ' ')
+            : 'not yet approved';
+          throw new Error(`This document is ${statusLabel} and has not completed the approval process yet.`);
+        }
+
+        setLetter(rpcData as any);
       } catch (err: any) {
         console.error('Verification error:', err);
         setError(err.message || 'Could not verify document.');
@@ -164,6 +150,7 @@ export default function VerificationPage() {
 
     verifyDocument();
   }, [letterId, supabase]);
+  // --- END UPDATED VERIFICATION LOGIC ---
 
   if (loading) {
     return (
@@ -335,11 +322,10 @@ export default function VerificationPage() {
                   {downloadError}
                 </div>
               )}
-              
-              <div 
-                className={`p-6 border-2 border-dashed rounded-2xl text-center transition-all ${
-                  dragActive ? 'bg-neuyellow/10 border-black scale-[0.99] shadow-inner' : 'bg-zinc-50 border-black/30 hover:border-black'
-                }`}
+
+              <div
+                className={`p-6 border-2 border-dashed rounded-2xl text-center transition-all ${dragActive ? 'bg-neuyellow/10 border-black scale-[0.99] shadow-inner' : 'bg-zinc-50 border-black/30 hover:border-black'
+                  }`}
                 onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
                 onDragLeave={() => setDragActive(false)}
                 onDrop={async (e) => {
@@ -357,10 +343,10 @@ export default function VerificationPage() {
                     Drag and drop the downloaded letter PDF here, or{' '}
                     <label className="text-black underline cursor-pointer hover:text-zinc-600">
                       browse
-                      <input 
-                        type="file" 
-                        accept="application/pdf" 
-                        className="hidden" 
+                      <input
+                        type="file"
+                        accept="application/pdf"
+                        className="hidden"
                         onChange={async (e) => {
                           const files = e.target.files;
                           if (files && files.length > 0) {
@@ -376,9 +362,8 @@ export default function VerificationPage() {
 
               {/* Status indicator */}
               {integrityStatus !== 'idle' && (
-                <div className={`p-4 rounded-xl border-2 border-black flex items-start gap-3 shadow-[3px_3px_0px_rgba(0,0,0,1)] ${
-                  integrityStatus === 'success' ? 'bg-neugreen/30' : 'bg-neured/30'
-                }`}>
+                <div className={`p-4 rounded-xl border-2 border-black flex items-start gap-3 shadow-[3px_3px_0px_rgba(0,0,0,1)] ${integrityStatus === 'success' ? 'bg-neugreen/30' : 'bg-neured/30'
+                  }`}>
                   {integrityStatus === 'success' ? (
                     <ShieldCheck className="w-5 h-5 text-black shrink-0 mt-0.5" />
                   ) : (
