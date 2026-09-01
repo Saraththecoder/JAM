@@ -4,6 +4,7 @@ import React, { forwardRef } from 'react';
 import Link from 'next/link';
 import { LogOut, Plus, ArrowLeft } from 'lucide-react';
 import Logo from './Logo';
+import PushNotificationToggle from './PushNotificationToggle';
 
 interface NavbarProps extends React.HTMLAttributes<HTMLElement> {
   role?: 'student' | 'faculty' | 'review' | 'wizard';
@@ -133,6 +134,9 @@ const Navbar = forwardRef<HTMLElement, NavbarProps>(({
 
         {/* Right Side: Profile & Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Push Notification Bell Toggle */}
+          <PushNotificationToggle />
+
           {/* Student Portal: "New Letter" Button */}
           {role === 'student' && (
             <Link

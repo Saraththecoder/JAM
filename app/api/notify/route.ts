@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClientServer, createAdminClient } from '@/lib/supabase/server';
 import { sendEmail } from '@/lib/email';
+import { sendPushNotification } from '@/lib/push';
 import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
@@ -75,6 +76,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Mentor ID not set on letter' }, { status: 400 });
       }
 
+      // Trigger Web Push Notification
+      sendPushNotification(castLetter.mentor_id, {
+        title: 'New Recommendation Request 📄',
+        body: `${studentName} (${studentRoll}) submitted a ${letterTypeName} for review.`,
+        url: `/faculty/review/${letterId}`,
+        tag: `letter-${letterId}`,
+      }).catch(e => console.error('Push notification trigger error:', e));
+
       const { data: mentorUser, error: authError } = await adminClient.auth.admin.getUserById(castLetter.mentor_id);
       if (authError || !mentorUser?.user?.email) {
         console.error('Could not fetch mentor email from Auth:', authError);
@@ -107,6 +116,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'HOD ID not set on letter' }, { status: 400 });
       }
 
+      // Trigger Web Push Notification
+      sendPushNotification(castLetter.hod_id, {
+        title: 'Final Signature Requested 👑',
+        body: `Mentor recommended ${studentName}'s ${letterTypeName}. Awaiting your final signature.`,
+        url: `/faculty/review/${letterId}`,
+        tag: `letter-${letterId}`,
+      }).catch(e => console.error('Push notification trigger error:', e));
+
       const { data: hodUser, error: authError } = await adminClient.auth.admin.getUserById(castLetter.hod_id);
       if (authError || !hodUser?.user?.email) {
         console.error('Could not fetch HOD email from Auth:', authError);
@@ -135,6 +152,15 @@ export async function POST(request: NextRequest) {
 
     } else if (type === 'approval') {
       // Stage 3: HOD approved & PDF generated. Notify the student.
+
+      // Trigger Web Push Notification
+      sendPushNotification(castLetter.student_id, {
+        title: 'Letter Approved & Signed! 🎉',
+        body: `Your ${letterTypeName} is approved and digitally signed. Tap to view your document.`,
+        url: '/student/dashboard',
+        tag: `letter-${letterId}`,
+      }).catch(e => console.error('Push notification trigger error:', e));
+
       const { data: studentUser, error: authError } = await adminClient.auth.admin.getUserById(castLetter.student_id);
       if (authError || !studentUser?.user?.email) {
         console.error('Could not fetch student email from Auth:', authError);
@@ -163,6 +189,15 @@ export async function POST(request: NextRequest) {
 
     } else if (type === 'rejection') {
       // Stage 4: Declined. Notify the student.
+
+      // Trigger Web Push Notification
+      sendPushNotification(castLetter.student_id, {
+        title: 'Letter Request Returned ⚠️',
+        body: `Your ${letterTypeName} was declined: "${rejectionReason || 'No details provided'}"`,
+        url: '/student/dashboard',
+        tag: `letter-${letterId}`,
+      }).catch(e => console.error('Push notification trigger error:', e));
+
       const { data: studentUser, error: authError } = await adminClient.auth.admin.getUserById(castLetter.student_id);
       if (authError || !studentUser?.user?.email) {
         console.error('Could not fetch student email from Auth:', authError);
