@@ -2,8 +2,8 @@ import webpush from 'web-push';
 import { createAdminClient } from '@/lib/supabase/server';
 
 // Default VAPID keys for development fallback
-const DEFAULT_VAPID_PUBLIC_KEY = 'BCP_8R4ZJ3m_rR7RjW8Lz7f5uQ6-P4R0r4J8m9_rR7RjW8Lz7f5uQ6-P4R0r4J8m9_rR7RjW8Lz7f5uQ6';
-const DEFAULT_VAPID_PRIVATE_KEY = 'bC1234567890abcdef1234567890abcdef1234567890';
+const DEFAULT_VAPID_PUBLIC_KEY = 'BHQ3EcqUAHhEnZJFSFuXJa2GtNQ6MXvXKVMHmqCfaz87edOrDKAm1pJYF5KCHo9MH2PlTaJInrNQ_kiEc3Jz9AY';
+const DEFAULT_VAPID_PRIVATE_KEY = 'j9rjr9aFF18O0C_ZTW21ASlxg0hGDJ-szMtYPxNl-jo';
 const DEFAULT_VAPID_SUBJECT = 'mailto:admin@aits-tpt.edu.in';
 
 const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || DEFAULT_VAPID_PUBLIC_KEY;
