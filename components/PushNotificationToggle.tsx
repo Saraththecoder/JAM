@@ -78,7 +78,7 @@ export default function PushNotificationToggle() {
           return;
         }
 
-        const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || DEFAULT_VAPID_PUBLIC_KEY;
+        const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_KEY || DEFAULT_VAPID_PUBLIC_KEY;
         const convertedKey = urlBase64ToUint8Array(vapidPublicKey);
 
         const newSub = await registration.pushManager.subscribe({

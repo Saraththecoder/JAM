@@ -6,7 +6,7 @@ const DEFAULT_VAPID_PUBLIC_KEY = 'BHQ3EcqUAHhEnZJFSFuXJa2GtNQ6MXvXKVMHmqCfaz87ed
 const DEFAULT_VAPID_PRIVATE_KEY = 'j9rjr9aFF18O0C_ZTW21ASlxg0hGDJ-szMtYPxNl-jo';
 const DEFAULT_VAPID_SUBJECT = 'mailto:admin@aits-tpt.edu.in';
 
-const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || DEFAULT_VAPID_PUBLIC_KEY;
+const publicKey = process.env.NEXT_PUBLIC_VAPID_KEY || DEFAULT_VAPID_PUBLIC_KEY;
 const privateKey = process.env.VAPID_PRIVATE_KEY || DEFAULT_VAPID_PRIVATE_KEY;
 const subject = process.env.VAPID_SUBJECT || DEFAULT_VAPID_SUBJECT;
 
