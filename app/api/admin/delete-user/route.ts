@@ -1,84 +1,148 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClientServer, createAdminClient } from '@/lib/supabase/server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { createAdminClient } from '@/lib/supabase/server';
+import { getAuth, getProfile, isHod, jsonError, logError, parseJson } from '@/lib/api';
 import { deleteUserLimiter } from '@/lib/rate-limit';
+import { deleteUserSchema } from '@/lib/validation';
+import { writeAuditLog } from '@/lib/audit';
+
+interface TargetProfile {
+  id: string;
+  role: 'student' | 'faculty';
+  department_id: string | null;
+  is_hod: boolean;
+  esign_storage_path: string | null;
+}
+
+interface TargetLetter {
+  id: string;
+  pdf_storage_path: string | null;
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClientServer();
-    const { data: { user } } = await supabase.auth.getUser();
-    const identifier = user?.id || request.headers.get('x-forwarded-for') || '127.0.0.1';
+    const { user } = await getAuth();
+    if (!user) return jsonError('Unauthorized.', 401);
 
-    const limitCheck = await deleteUserLimiter.limit(identifier);
-    if (!limitCheck.success) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please wait a minute before performing delete operations.' },
-        { status: 429 }
+    const limit = await deleteUserLimiter.limit(user.id);
+    if (!limit.success) {
+      return jsonError('Too many delete requests. Please wait a minute and try again.', 429);
+    }
+
+    const profile = await getProfile(user.id);
+    if (!isHod(profile)) {
+      return jsonError('Only an approved HOD can manage department accounts.', 403);
+    }
+
+    const parsed = await parseJson(request, deleteUserSchema);
+    if (!parsed.ok) return parsed.response;
+
+    const targetId = parsed.data.userId;
+    if (targetId === user.id) {
+      return jsonError('You cannot delete your own account.', 400);
+    }
+
+    const admin = createAdminClient();
+    const { data: targetData, error: targetError } = await admin
+      .from('profiles')
+      .select('id, role, department_id, is_hod, esign_storage_path')
+      .eq('id', targetId)
+      .single();
+
+    if (targetError || !targetData) {
+      return jsonError('User profile not found.', 404);
+    }
+
+    const target = targetData as unknown as TargetProfile;
+    if (target.department_id !== profile.department_id) {
+      return jsonError('You cannot delete users from outside your department.', 403);
+    }
+
+    if (target.is_hod) {
+      const { count, error: countError } = await admin
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('department_id', target.department_id)
+        .eq('is_hod', true)
+        .eq('is_approved', true)
+        .neq('id', target.id);
+
+      if (countError) {
+        logError('admin.delete-user.countHods', countError);
+        return jsonError('Unable to verify the department HOD coverage.', 500);
+      }
+
+      if ((count ?? 0) === 0) {
+        return jsonError(
+          'This is the last approved HOD in the department. Assign another HOD before deleting this account.',
+          400
+        );
+      }
+    }
+
+    const letterPdfs: string[] = [];
+    const pageSize = 1000;
+    let from = 0;
+
+    while (true) {
+      const { data: targetLetters, error: lettersError } = await admin
+        .from('letters')
+        .select('id, pdf_storage_path')
+        .or(`student_id.eq.${target.id},faculty_id.eq.${target.id}`)
+        .order('id')
+        .range(from, from + pageSize - 1);
+
+      if (lettersError) {
+        logError('admin.delete-user.letters', lettersError);
+        break;
+      }
+
+      const page = (targetLetters as TargetLetter[] | null) ?? [];
+      letterPdfs.push(
+        ...page
+          .map((letter) => letter.pdf_storage_path)
+          .filter((value): value is string => Boolean(value))
       );
+
+      if (page.length < pageSize) break;
+      from += pageSize;
     }
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const adminClient = createAdminClient();
-
-    // 2. Fetch profile and verify HOD status
-    const { data: profile, error: profileError } = await adminClient
-      .from('profiles')
-      .select('role, designation, department_id')
-      .eq('id', user.id)
-      .single();
-
-    if (profileError || !profile) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const isHod = profile.role === 'faculty' && (
-      profile.designation?.toLowerCase().includes('hod') ||
-      profile.designation?.toLowerCase().includes('head')
-    );
-
-    if (!isHod) {
-      return NextResponse.json({ error: 'Only the Head of the Department (HOD) can manage department credentials.' }, { status: 403 });
-    }
-
-    // 3. Parse target userId
-    const { userId } = await request.json();
-
-    if (!userId) {
-      return NextResponse.json({ error: 'User ID to delete is required' }, { status: 400 });
-    }
-
-    // 4. Double check that the target user belongs to the HOD's department
-    const { data: targetProfile, error: targetError } = await adminClient
-      .from('profiles')
-      .select('id, department_id, role')
-      .eq('id', userId)
-      .single();
-
-    if (targetError || !targetProfile) {
-      return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
-    }
-
-    if (targetProfile.department_id !== profile.department_id) {
-      return NextResponse.json({ error: 'Cannot delete users from outside your department.' }, { status: 403 });
-    }
-
-    if (targetProfile.id === user.id) {
-      return NextResponse.json({ error: 'You cannot delete your own account.' }, { status: 400 });
-    }
-
-    // 5. Delete user from Supabase Auth (cascades to profile)
-    const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
-
+    const { error: deleteError } = await admin.auth.admin.deleteUser(target.id);
     if (deleteError) {
-      console.error('Admin deleteUser error:', deleteError);
-      return NextResponse.json({ error: 'Failed to delete user.' }, { status: 500 });
+      logError('admin.delete-user.auth', deleteError);
+      return jsonError('Unable to delete the account. Please try again.', 500);
     }
+
+    // Storage cleanup happens after the account is gone. A failed cleanup
+    // leaves an orphaned private object rather than deleting a live user's
+    // documents before the account deletion succeeds.
+    for (let index = 0; index < letterPdfs.length; index += 100) {
+      const { error: removeLettersError } = await admin.storage
+        .from('letters')
+        .remove(letterPdfs.slice(index, index + 100));
+      if (removeLettersError) logError('admin.delete-user.removeLetters', removeLettersError);
+    }
+
+    if (target.esign_storage_path?.startsWith(`${target.id}/`)) {
+      const { error: removeSignatureError } = await admin.storage
+        .from('signatures')
+        .remove([target.esign_storage_path]);
+      if (removeSignatureError) logError('admin.delete-user.removeSignature', removeSignatureError);
+    }
+
+    await writeAuditLog({
+      actorId: user.id,
+      action: 'user.deleted',
+      metadata: {
+        targetUserId: target.id,
+        targetRole: target.role,
+        targetWasHod: target.is_hod,
+      },
+    });
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('Unexpected admin delete-user error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  } catch (error) {
+    logError('admin.delete-user', error);
+    return jsonError('Unable to delete the account. Please try again.', 500);
   }
 }

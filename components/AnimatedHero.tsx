@@ -63,7 +63,7 @@ export default function AnimatedHero() {
     };
 
     if (typeof window !== 'undefined') {
-      if ((window as any).__splashScreenComplete) {
+      if ((window as Window & { __splashScreenComplete?: boolean }).__splashScreenComplete) {
         runAnimation();
       } else {
         window.addEventListener('splashScreenComplete', runAnimation);

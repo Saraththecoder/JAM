@@ -35,8 +35,8 @@ export default function FacultyLoginPage() {
         router.push('/faculty/dashboard');
         router.refresh();
       }
-    } catch (err: any) {
-      setError(err?.message || 'Failed to sign in. Please verify your credentials.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to sign in. Please verify your credentials.');
       setLoading(false);
     }
   };

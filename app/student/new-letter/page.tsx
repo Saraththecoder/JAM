@@ -4,9 +4,14 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { 
-  FileText, ArrowLeft, ArrowRight, Sparkles, Send, 
-  RefreshCw, AlertCircle, Calendar, Clock, MapPin, AlignLeft, ShieldCheck 
+import {
+  ArrowLeft,
+  ArrowRight,
+  Sparkles,
+  Send,
+  RefreshCw,
+  AlertCircle,
+  ShieldCheck,
 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 
@@ -21,6 +26,7 @@ interface Faculty {
   id: string;
   full_name: string;
   designation: string;
+  is_hod: boolean;
 }
 
 interface StudentProfile {
@@ -82,7 +88,7 @@ export default function NewLetterPage() {
         if (profileError || !profile) {
           throw new Error('Failed to retrieve student profile.');
         }
-        setStudent(profile as any);
+        setStudent(profile as unknown as StudentProfile);
 
         // 2. Fetch letter types
         const { data: types, error: typesError } = await supabase
@@ -99,17 +105,21 @@ export default function NewLetterPage() {
         // 3. Fetch approved faculty in the student's department
         const { data: faculty, error: facultyError } = await supabase
           .from('profiles')
-          .select('id, full_name, designation')
+          .select('id, full_name, designation, is_hod')
           .eq('role', 'faculty')
           .eq('is_approved', true)
           .eq('department_id', profile.department_id)
           .order('full_name');
 
         if (facultyError) throw facultyError;
-        setFacultyList(faculty || []);
-        if (faculty && faculty.length > 0) {
-          setSelectedMentorId(faculty[0].id);
+        const facultyRows = (faculty || []) as Faculty[];
+        setFacultyList(facultyRows);
+        const mentorCandidates = facultyRows.filter((member) => !member.is_hod);
+        if (mentorCandidates.length > 0) {
+          setSelectedMentorId(mentorCandidates[0].id);
         }
+        const hod = facultyRows.find((member) => member.is_hod);
+        if (hod) setSelectedHodId(hod.id);
 
         // Retrieve OpenRouter key from sessionStorage if it exists
         if (typeof window !== 'undefined') {
@@ -117,9 +127,9 @@ export default function NewLetterPage() {
           if (savedKey) setOpenRouterKey(savedKey);
         }
 
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Error loading data:', err);
-        setError(err.message || 'Failed to initialize request form.');
+        setError(err instanceof Error ? err.message : 'Failed to initialize request form.');
       } finally {
         setFetchingData(false);
       }
@@ -136,11 +146,12 @@ export default function NewLetterPage() {
     let result = templateStr;
     
     // Default placeholders
+    const hodName = selectedHod?.full_name || 'The Head of the Department';
     result = result.replaceAll('{student_name}', student?.full_name || '');
     result = result.replaceAll('{roll_number}', student?.roll_number || '');
     result = result.replaceAll('{mentor_name}', selectedMentor?.full_name || '');
-    result = result.replaceAll('{hod_name}', selectedHod?.full_name || '');
-    result = result.replaceAll('{faculty_name}', selectedHod?.full_name || '');
+    result = result.replaceAll('{hod_name}', hodName);
+    result = result.replaceAll('{faculty_name}', hodName);
 
     // Form-specific placeholders
     Object.entries(data).forEach(([key, val]) => {
@@ -170,7 +181,7 @@ export default function NewLetterPage() {
               required
             />
             <p className="mt-1 text-xs text-zinc-550 font-semibold">
-              Your key is only saved in this browser tab's session memory. It is never stored on our database.
+              Your key is only saved in this browser tab&apos;s session memory. It is never stored on our database.
             </p>
           </div>
 
@@ -558,9 +569,9 @@ export default function NewLetterPage() {
         }
         
         setStep(3);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Error generating letter body:', err);
-        setError(err.message || 'An error occurred during letter body compilation.');
+        setError(err instanceof Error ? err.message : 'An error occurred during letter body compilation.');
       } finally {
         setLoading(false);
       }
@@ -577,46 +588,29 @@ export default function NewLetterPage() {
     setError(null);
 
     try {
-      // 1. Insert letter record in DB
-      const { data: newLetter, error: insertError } = await supabase
-        .from('letters')
-        .insert({
-          student_id: student?.id,
-          faculty_id: selectedMentorId, 
-          mentor_id: selectedMentorId,
-          hod_id: null,
-          letter_type_id: selectedTypeId,
-          form_data: selectedType?.requires_ai 
-            ? { description: aiDescription, tone: aiTone } 
-            : formData,
-          generated_body: generatedBody,
-          status: 'pending_mentor', 
-        })
-        .select('id')
-        .single();
-
-      if (insertError) {
-        throw new Error(`Failed to save letter request: ${insertError.message}`);
-      }
-
-      // 2. Trigger notification email to faculty via local API route (asynchronous)
-      // This endpoint sends Resend notifications. We call it in the background.
-      fetch('/api/notify', {
+      const response = await fetch('/api/letters/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          letterId: newLetter.id,
-          type: 'new_request',
+          letterTypeId: selectedTypeId,
+          mentorId: selectedMentorId,
+          formData: selectedType?.requires_ai
+            ? { description: aiDescription, tone: aiTone }
+            : formData,
+          generatedBody,
         }),
-      }).catch(err => console.error('Notification trigger failed:', err));
+      });
 
-      // 3. Return to student dashboard
+      const data = (await response.json()) as { error?: string; letterId?: string };
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit letter request.');
+      }
+
       router.push('/student/dashboard');
       router.refresh();
-
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error sending letter:', err);
-      setError(err?.message || 'Failed to submit letter request. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to submit letter request. Please try again.');
       setLoading(false);
     }
   };
@@ -630,14 +624,14 @@ export default function NewLetterPage() {
     );
   }
 
-  if (facultyList.length === 0) {
+  if (facultyList.filter((faculty) => !faculty.is_hod).length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-grid-pattern">
         <div className="max-w-md w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-8 rounded-2xl text-center shadow-md">
           <ShieldCheck className="w-12 h-12 text-amber-500 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">No Active Faculty Found</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
-            There are currently no approved faculty members in the {student?.departments?.name || 'AI&ML'} department to sign your letter. Please ask your class teacher/HOD to register and obtain approval.
+            There are currently no approved class mentors in the {student?.departments?.name || 'AI&ML'} department to review your letter. Please ask your HOD to register an approved faculty mentor.
           </p>
           <Link
             href="/student/dashboard"
@@ -714,10 +708,10 @@ export default function NewLetterPage() {
                   onChange={(e) => setSelectedMentorId(e.target.value)}
                   className="mt-1.5 block w-full px-3 py-2.5 bg-neuyellow text-black border-2 border-black rounded-xl text-sm font-bold focus:shadow-[3px_3px_0px_rgba(0,0,0,1)] transition-all"
                 >
-                  {facultyList.map((fac) => (
-                    <option 
-                      key={fac.id} 
-                      value={fac.id} 
+                  {facultyList.filter((fac) => !fac.is_hod).map((fac) => (
+                    <option
+                      key={fac.id}
+                      value={fac.id}
                       className="bg-white text-black"
                     >
                       {fac.full_name} ({fac.designation})
@@ -799,7 +793,7 @@ export default function NewLetterPage() {
                   })()}</p>
                   <div>
                     <p className="font-semibold text-zinc-700 dark:text-zinc-300">To,</p>
-                    <p>HOD: {selectedHod?.full_name}</p>
+                    <p>HOD: {selectedHod?.full_name || 'The Head of the Department'}</p>
                     <p>Via Class Mentor: {selectedMentor?.full_name}</p>
                     <p>Department of {student?.departments?.name}, AITS.</p>
                   </div>

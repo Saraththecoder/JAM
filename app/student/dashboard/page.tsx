@@ -1,15 +1,23 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { clearPushSubscription } from '@/lib/push-client';
 import StatusBadge from '@/components/StatusBadge';
-import Logo from '@/components/Logo';
 import Navbar from '@/components/Navbar';
-import { 
-  FileText, LogOut, Plus, FileDown, Search, Filter, 
-  Calendar, RefreshCw, AlertCircle, Clock, CheckCircle2, XCircle, User
+import {
+  FileText,
+  FileDown,
+  Search,
+  Filter,
+  Calendar,
+  RefreshCw,
+  AlertCircle,
+  Clock,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react';
 
 interface Letter {
@@ -46,9 +54,13 @@ export default function StudentDashboard() {
 
   const formatDate = (dateVal: string) => {
     const d = new Date(dateVal);
-    if (isNaN(d.getTime())) return '—';
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    if (Number.isNaN(d.getTime())) return '—';
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(d);
   };
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [letters, setLetters] = useState<Letter[]>([]);
@@ -57,10 +69,11 @@ export default function StudentDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const supabase = createClient();
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -77,7 +90,7 @@ export default function StudentDashboard() {
         .single();
 
       if (profileError) throw profileError;
-      setProfile(profileData as any);
+      setProfile(profileData as unknown as StudentProfile);
 
       const { data: lettersData, error: lettersError } = await supabase
         .from('letters')
@@ -93,23 +106,27 @@ export default function StudentDashboard() {
           rejection_reviewer:rejection_by (full_name, role)
         `)
         .eq('student_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(200);
 
       if (lettersError) throw lettersError;
-      setLetters(lettersData as any);
-    } catch (err: any) {
+      setLetters((lettersData || []) as unknown as Letter[]);
+    } catch (err: unknown) {
       console.error('Error fetching dashboard data:', err);
-      setError(err?.message || 'Failed to load dashboard data. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to load dashboard data. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchData();
   }, [router, supabase]);
 
+  useEffect(() => {
+    // Initial data fetch; the setState calls happen inside the async callback.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchData();
+  }, [fetchData]);
+
   const handleLogout = async () => {
+    await clearPushSubscription();
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();
@@ -117,13 +134,15 @@ export default function StudentDashboard() {
 
   const handleDownload = async (letterId: string) => {
     setDownloadingId(letterId);
+    setDownloadError(null);
     try {
       const res = await fetch(`/api/download-letter/${letterId}`);
-      const data = await res.json();
+      const data = (await res.json()) as { error?: string; signedUrl?: string };
       if (!res.ok) throw new Error(data.error || 'Failed to retrieve signed download URL');
-      if (data.signedUrl) window.open(data.signedUrl, '_blank');
-    } catch (err: any) {
-      alert(err.message || 'Error downloading file. Please try again.');
+      if (!data.signedUrl) throw new Error('The download link could not be created.');
+      window.location.assign(data.signedUrl);
+    } catch (err: unknown) {
+      setDownloadError(err instanceof Error ? err.message : 'Error downloading file. Please try again.');
     } finally {
       setDownloadingId(null);
     }
@@ -229,6 +248,13 @@ export default function StudentDashboard() {
             </button>
           </div>
         </div>
+
+        {downloadError && (
+          <div className="mb-5 p-3 rounded-xl bg-neured border-2 border-black text-xs font-bold text-black flex items-center gap-2" role="alert">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {downloadError}
+          </div>
+        )}
 
         {/* Letters List */}
         {loading ? (
@@ -364,7 +390,7 @@ function LetterAction({ letter, downloadingId, onDownload }: {
         <span className="font-extrabold text-rose-600 block mb-0.5">
           Declined by {letter.rejection_reviewer?.full_name || 'Faculty'}:
         </span>
-        <span className="text-zinc-500 italic">"{letter.rejection_reason || 'No reason provided'}"</span>
+        <span className="text-zinc-500 italic">&quot;{letter.rejection_reason || 'No reason provided'}&quot;</span>
       </div>
     );
   }

@@ -1,6 +1,16 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+const PUBLIC_PATHS = ['/', '/login', '/register', '/verify', '/privacy', '/.well-known'];
+const PUBLIC_API_PATHS = ['/api/health', '/api/download-letter'];
+
+function isPublicPath(path: string): boolean {
+  return (
+    PUBLIC_PATHS.some((publicPath) => path === publicPath || path.startsWith(`${publicPath}/`)) ||
+    PUBLIC_API_PATHS.some((apiPath) => path === apiPath || path.startsWith(`${apiPath}/`))
+  );
+}
+
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -17,12 +27,8 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          response = NextResponse.next({
-            request,
-          });
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
@@ -31,59 +37,72 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  // Retrieve current user
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
   const url = request.nextUrl.clone();
   const path = url.pathname;
+  const isApiPath = path.startsWith('/api/');
 
-  // Define public paths
-  const isPublicPath =
-    path === '/' ||
-    path.startsWith('/login') ||
-    path.startsWith('/register') ||
-    path.startsWith('/verify') ||
-    path.startsWith('/api/auth') ||
-    path.startsWith('/api/download-letter');
+  // Reject cross-site state-changing API requests. Server-to-server calls
+  // without an Origin header are still allowed; browsers always send Origin
+  // for non-GET fetch/XHR requests.
+  if (isApiPath && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
+    const origin = request.headers.get('origin');
+    let configuredOrigin: string | null = null;
+    if (process.env.NEXT_PUBLIC_APP_URL) {
+      try {
+        configuredOrigin = new URL(process.env.NEXT_PUBLIC_APP_URL).origin;
+      } catch {
+        configuredOrigin = null;
+      }
+    }
+    const allowedOrigins = new Set([request.nextUrl.origin]);
+    if (configuredOrigin) allowedOrigins.add(configuredOrigin);
 
-  // 1. Unauthenticated users: redirect to login if attempting private path
-  if (!user && !isPublicPath) {
+    if (origin && !allowedOrigins.has(origin)) {
+      return NextResponse.json({ error: 'Invalid request origin.' }, { status: 403 });
+    }
+  }
+
+  if (!user && !isPublicPath(path)) {
+    if (isApiPath) {
+      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
+    }
     url.pathname = '/login';
+    url.searchParams.set('next', path);
     return NextResponse.redirect(url);
   }
 
-  // 2. Authenticated users: role-based access control
-  if (user) {
-    // Query public.profiles to get role
+  // API routes perform their own profile/role checks with the service role.
+  // The proxy only needs the profile for page-level redirects.
+  if (user && !isApiPath) {
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single();
 
-    if (profile) {
-      // Prevent logged-in users from accessing /login or register paths
-      if (path === '/login' || path.startsWith('/register')) {
-        url.pathname =
-          profile.role === 'faculty'
-            ? '/faculty/dashboard'
-            : '/student/dashboard';
-        return NextResponse.redirect(url);
-      }
+    if (!profile) {
+      url.pathname = '/login';
+      url.searchParams.set('error', 'profile');
+      return NextResponse.redirect(url);
+    }
 
-      // Restrict students from accessing /faculty routes
-      if (path.startsWith('/faculty') && profile.role !== 'faculty') {
-        url.pathname = '/student/dashboard';
-        return NextResponse.redirect(url);
-      }
+    if (path === '/login' || path.startsWith('/register')) {
+      url.pathname = profile.role === 'faculty' ? '/faculty/dashboard' : '/student/dashboard';
+      return NextResponse.redirect(url);
+    }
 
-      // Restrict faculty from accessing /student routes
-      if (path.startsWith('/student') && profile.role !== 'student') {
-        url.pathname = '/faculty/dashboard';
-        return NextResponse.redirect(url);
-      }
+    if (path.startsWith('/faculty') && profile.role !== 'faculty') {
+      url.pathname = '/student/dashboard';
+      return NextResponse.redirect(url);
+    }
+
+    if (path.startsWith('/student') && profile.role !== 'student') {
+      url.pathname = '/faculty/dashboard';
+      return NextResponse.redirect(url);
     }
   }
 
@@ -93,12 +112,8 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - images/signatures (allow displaying asset files)
+     * Match all request paths except static assets and public PWA files.
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 };

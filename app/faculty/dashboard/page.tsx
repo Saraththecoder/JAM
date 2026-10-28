@@ -1,17 +1,28 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { clearPushSubscription } from '@/lib/push-client';
 import StatusBadge from '@/components/StatusBadge';
-import Logo from '@/components/Logo';
 import Navbar from '@/components/Navbar';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
-import { 
-  FileText, LogOut, CheckCircle2, XCircle, Search, Filter, 
-  Calendar, RefreshCw, AlertCircle, Clock, ChevronRight, ShieldAlert, Upload 
+import { parseCsvRecords } from '@/lib/csv';
+import {
+  FileText,
+  CheckCircle2,
+  XCircle,
+  Search,
+  Filter,
+  Calendar,
+  RefreshCw,
+  AlertCircle,
+  Clock,
+  ChevronRight,
+  ShieldAlert,
+  Upload,
 } from 'lucide-react';
 
 gsap.registerPlugin();
@@ -21,8 +32,8 @@ interface Letter {
   created_at: string;
   status: 'pending' | 'approved' | 'rejected' | 'pending_mentor' | 'pending_hod';
   rejection_reason: string | null;
-  mentor_id: string;
-  hod_id: string;
+  mentor_id: string | null;
+  hod_id: string | null;
   letter_types: {
     name: string;
   };
@@ -32,6 +43,17 @@ interface Letter {
   };
 }
 
+interface DepartmentMember {
+  id: string;
+  full_name: string;
+  roll_number: string | null;
+  designation: string | null;
+  role: 'student' | 'faculty';
+  is_approved: boolean;
+  is_hod: boolean;
+  created_at: string;
+}
+
 interface FacultyProfile {
   id: string;
   role: string;
@@ -39,6 +61,7 @@ interface FacultyProfile {
   full_name: string;
   designation: string;
   is_approved: boolean;
+  is_hod: boolean;
   departments: {
     name: string;
   };
@@ -49,9 +72,13 @@ export default function FacultyDashboard() {
 
   const formatDate = (dateVal: string) => {
     const d = new Date(dateVal);
-    if (isNaN(d.getTime())) return '—';
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    if (Number.isNaN(d.getTime())) return '—';
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(d);
   };
   const [profile, setProfile] = useState<FacultyProfile | null>(null);
   const [letters, setLetters] = useState<Letter[]>([]);
@@ -162,7 +189,7 @@ export default function FacultyDashboard() {
 
   // HOD Admin Database tab states
   const [activeTab, setActiveTab] = useState<'queue' | 'database'>('queue');
-  const [deptProfiles, setDeptProfiles] = useState<any[]>([]);
+  const [deptProfiles, setDeptProfiles] = useState<DepartmentMember[]>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(false);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [newRole, setNewRole] = useState<'student' | 'faculty'>('student');
@@ -171,6 +198,7 @@ export default function FacultyDashboard() {
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newDesignation, setNewDesignation] = useState('Faculty');
+  const [newIsHod, setNewIsHod] = useState(false);
   const [adminActionError, setAdminActionError] = useState<string | null>(null);
   const [adminActionSuccess, setAdminActionSuccess] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -182,7 +210,7 @@ export default function FacultyDashboard() {
   const [bulkErrors, setBulkErrors] = useState<string[]>([]);
   const [bulkImporting, setBulkImporting] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -192,23 +220,21 @@ export default function FacultyDashboard() {
         return;
       }
 
-      // 1. Fetch Profile info with department name
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('id, role, full_name, designation, is_approved, department_id, departments(name)')
+        .select('id, role, full_name, designation, is_approved, is_hod, department_id, departments(name)')
         .eq('id', user.id)
         .single();
 
       if (profileError) throw profileError;
-      setProfile(profileData as any);
+      const facultyProfile = profileData as unknown as FacultyProfile;
+      setProfile(facultyProfile);
 
-      // If user is not approved, we don't need to load letters
-      if (!profileData.is_approved) {
+      if (!facultyProfile.is_approved) {
         setLoading(false);
         return;
       }
 
-      // 2. Fetch Letters addressed to this faculty member sorted by newest (either as Mentor or HOD)
       const { data: lettersData, error: lettersError } = await supabase
         .from('letters')
         .select(`
@@ -222,40 +248,40 @@ export default function FacultyDashboard() {
           hod_id
         `)
         .or(`mentor_id.eq.${user.id},hod_id.eq.${user.id},faculty_id.eq.${user.id}`)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(200);
 
       if (lettersError) throw lettersError;
-      setLetters(lettersData as any);
-    } catch (err: any) {
+      setLetters((lettersData || []) as unknown as Letter[]);
+    } catch (err: unknown) {
       console.error('Error fetching faculty dashboard data:', err);
-      setError(err?.message || 'Failed to load dashboard data. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to load dashboard data. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchData();
   }, [router, supabase]);
 
-  const isHodUser = profile?.role === 'faculty' && (
-    profile?.designation?.toLowerCase().includes('hod') ||
-    profile?.designation?.toLowerCase().includes('head')
-  );
+  useEffect(() => {
+    // Initial data fetch; the setState calls happen inside the async callback.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchData();
+  }, [fetchData]);
+
+  const isHodUser = profile?.role === 'faculty' && profile.is_approved && profile.is_hod;
 
   const fetchDeptProfiles = async () => {
-    if (!profile) return;
+    if (!profile?.department_id) return;
     setLoadingProfiles(true);
     try {
       const { data, error: fetchErr } = await supabase
         .from('profiles')
-        .select('id, full_name, roll_number, designation, role, is_approved, created_at')
-        .eq('department_id', (profile as any).department_id)
+        .select('id, full_name, roll_number, designation, role, is_approved, is_hod, created_at')
+        .eq('department_id', profile.department_id)
         .order('role', { ascending: false })
         .order('full_name', { ascending: true });
       if (fetchErr) throw fetchErr;
-      setDeptProfiles(data || []);
-    } catch (err: any) {
+      setDeptProfiles((data || []) as unknown as DepartmentMember[]);
+    } catch (err: unknown) {
       console.error('Error fetching department profiles:', err);
     } finally {
       setLoadingProfiles(false);
@@ -274,13 +300,13 @@ export default function FacultyDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: targetUserId }),
       });
-      const result = await res.json();
+      const result = (await res.json()) as { error?: string };
       if (!res.ok) {
         throw new Error(result.error || 'Failed to delete user.');
       }
-      fetchDeptProfiles();
-    } catch (err: any) {
-      setAdminActionError(err.message || 'Failed to delete user.');
+      void fetchDeptProfiles();
+    } catch (err: unknown) {
+      setAdminActionError(err instanceof Error ? err.message : 'Failed to delete user.');
     } finally {
       setActionLoading(false);
     }
@@ -303,10 +329,11 @@ export default function FacultyDashboard() {
           email: newRole === 'faculty' ? newEmail : undefined,
           password: newPassword,
           designation: newRole === 'faculty' ? newDesignation : undefined,
+          is_hod: newRole === 'faculty' ? newIsHod : undefined,
         }),
       });
 
-      const result = await res.json();
+      const result = (await res.json()) as { error?: string };
       if (!res.ok) {
         throw new Error(result.error || 'Failed to create user.');
       }
@@ -318,9 +345,10 @@ export default function FacultyDashboard() {
       setNewEmail('');
       setNewPassword('');
       setNewDesignation('Faculty');
-      fetchDeptProfiles();
-    } catch (err: any) {
-      setAdminActionError(err.message || 'Failed to add user account.');
+      setNewIsHod(false);
+      void fetchDeptProfiles();
+    } catch (err: unknown) {
+      setAdminActionError(err instanceof Error ? err.message : 'Failed to add user account.');
     } finally {
       setActionLoading(false);
     }
@@ -334,97 +362,108 @@ export default function FacultyDashboard() {
     setBulkErrors([]);
     setBulkProgress({ current: 0, total: 0, success: 0, failed: 0 });
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const text = event.target?.result as string;
-        if (!text) throw new Error('Could not read CSV file.');
-
-        // Parse CSV lines
-        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        if (lines.length <= 1) {
-          throw new Error('CSV file is empty or only contains headers.');
-        }
-
-        // Header: role,name,identifier,password,designation
-        const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
-        const roleIdx = headers.indexOf('role');
-        const nameIdx = headers.indexOf('name');
-        const identifierIdx = headers.indexOf('identifier');
-        const passwordIdx = headers.indexOf('password');
-        const designationIdx = headers.indexOf('designation');
-
-        if (roleIdx === -1 || nameIdx === -1 || identifierIdx === -1 || passwordIdx === -1) {
-          throw new Error('CSV must contain headers: role, name, identifier, password (designation is optional).');
-        }
-
-        const records = [];
-        for (let i = 1; i < lines.length; i++) {
-          const cols = lines[i].split(',').map(c => c.trim());
-          if (cols.length < 4) continue; // Skip malformed rows
-          records.push({
-            role: cols[roleIdx],
-            name: cols[nameIdx],
-            identifier: cols[identifierIdx],
-            password: cols[passwordIdx],
-            designation: designationIdx !== -1 ? cols[designationIdx] : undefined
-          });
-        }
-
-        setBulkProgress({ current: 0, total: records.length, success: 0, failed: 0 });
-
-        let successCount = 0;
-        let failedCount = 0;
-        const errorList: string[] = [];
-
-        for (let idx = 0; idx < records.length; idx++) {
-          const rec = records[idx];
-          try {
-            const res = await fetch('/api/admin/create-user', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                role: rec.role,
-                full_name: rec.name,
-                roll_number: rec.role === 'student' ? rec.identifier : undefined,
-                email: rec.role === 'faculty' ? rec.identifier : undefined,
-                password: rec.password,
-                designation: rec.role === 'faculty' ? rec.designation : undefined,
-              }),
-            });
-
-            const result = await res.json();
-            if (!res.ok) {
-              throw new Error(result.error || 'Failed to create user');
-            }
-
-            successCount++;
-          } catch (err: any) {
-            failedCount++;
-            errorList.push(`Row ${idx + 2} (${rec.name}): ${err.message || 'Unknown error'}`);
-          }
-
-          setBulkProgress({
-            current: idx + 1,
-            total: records.length,
-            success: successCount,
-            failed: failedCount
-          });
-        }
-
-        setBulkErrors(errorList);
-        fetchDeptProfiles();
-      } catch (err: any) {
-        setBulkErrors([err.message || 'Failed to parse CSV file.']);
-      } finally {
-        setBulkImporting(false);
+    try {
+      if (bulkFile.size > 1_000_000) {
+        throw new Error('CSV file is too large. Keep imports under 1 MB.');
       }
-    };
 
-    reader.readAsText(bulkFile);
+      const text = await bulkFile.text();
+      const rows = parseCsvRecords(text);
+      if (rows.length === 0) {
+        throw new Error('CSV file is empty or only contains headers.');
+      }
+
+      if (rows.length > 100) {
+        throw new Error('Import at most 100 accounts at a time.');
+      }
+
+      const parseErrors: string[] = [];
+      const users: Array<{
+        role: 'student' | 'faculty';
+        full_name: string;
+        roll_number?: string;
+        email?: string;
+        password: string;
+        designation?: string;
+        is_hod?: boolean;
+      }> = [];
+
+      rows.forEach((row, index) => {
+        const role = (row.role || '').toLowerCase();
+        const name = row.name || '';
+        const identifier = row.identifier || '';
+        const password = row.password || '';
+        const designation = row.designation || undefined;
+
+        if (role !== 'student' && role !== 'faculty') {
+          parseErrors.push(`Row ${index + 2}: role must be "student" or "faculty".`);
+          return;
+        }
+
+        if (!name || !identifier || !password) {
+          parseErrors.push(`Row ${index + 2}: name, identifier, and password are required.`);
+          return;
+        }
+
+        users.push({
+          role,
+          full_name: name,
+          roll_number: role === 'student' ? identifier : undefined,
+          email: role === 'faculty' ? identifier : undefined,
+          password,
+          designation: role === 'faculty' ? designation : undefined,
+          is_hod: role === 'faculty' ? (row.is_hod || '').toLowerCase() === 'true' : undefined,
+        });
+      });
+
+      if (users.length === 0) {
+        setBulkErrors(parseErrors.length > 0 ? parseErrors : ['No valid rows found in the CSV.']);
+        return;
+      }
+
+      setBulkProgress({ current: 0, total: users.length, success: 0, failed: 0 });
+
+      const res = await fetch('/api/admin/bulk-create-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ users }),
+      });
+
+      const result = (await res.json()) as {
+        error?: string;
+        created?: unknown[];
+        failed?: Array<{ index: number; error: string }>;
+        total?: number;
+      };
+
+      if (!res.ok) {
+        throw new Error(result.error || 'Bulk import failed.');
+      }
+
+      const createdCount = result.created?.length ?? 0;
+      const failures = result.failed ?? [];
+      const total = result.total ?? users.length;
+
+      setBulkProgress({
+        current: total,
+        total,
+        success: createdCount,
+        failed: failures.length,
+      });
+      setBulkErrors([
+        ...parseErrors,
+        ...failures.map((failure) => `Row ${failure.index + 2}: ${failure.error}`),
+      ]);
+      void fetchDeptProfiles();
+    } catch (err: unknown) {
+      setBulkErrors([err instanceof Error ? err.message : 'Failed to import CSV file.']);
+    } finally {
+      setBulkImporting(false);
+    }
   };
 
   const handleLogout = async () => {
+    await clearPushSubscription();
     await supabase.auth.signOut();
     router.push('/login');
     router.refresh();
@@ -435,7 +474,7 @@ export default function FacultyDashboard() {
     if (!profile) return;
 
     let base64Data = '';
-    let fileType = 'image/png';
+    const fileType = 'image/png';
 
     if (sigUploadMode === 'upload') {
       if (!newSignatureFile) return;
@@ -482,7 +521,7 @@ export default function FacultyDashboard() {
         }),
       });
 
-      const result = await res.json();
+      const result = (await res.json()) as { error?: string };
 
       if (!res.ok) {
         throw new Error(result.error || 'Failed to upload signature.');
@@ -497,9 +536,9 @@ export default function FacultyDashboard() {
         setShowUploadModal(false);
         setUploadSuccess(false);
       }, 2000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setUploadError(err.message || 'Failed to update signature.');
+      setUploadError(err instanceof Error ? err.message : 'Failed to update signature.');
       setUploadingSignature(false);
     }
   };
@@ -955,6 +994,7 @@ export default function FacultyDashboard() {
                   onClick={() => {
                     setAdminActionError(null);
                     setAdminActionSuccess(false);
+                    setNewIsHod(false);
                     setShowAddUserModal(true);
                   }}
                   className="paper-btn inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl bg-neugreen!"
@@ -995,6 +1035,11 @@ export default function FacultyDashboard() {
                         >
                           <td className="px-6 py-4 border-r-2 border-black whitespace-nowrap">
                             <span className="font-extrabold">{member.full_name}</span>
+                            {member.is_hod && (
+                              <span className="ml-2 px-1.5 py-0.5 text-[9px] font-black uppercase rounded border border-black bg-neuyellow">
+                                HOD
+                              </span>
+                            )}
                           </td>
                           <td className="px-6 py-4 border-r-2 border-black whitespace-nowrap">
                             <span className={`px-2.5 py-1 text-[10px] font-bold rounded border-2 border-black shadow-[1px_1px_0px_rgba(0,0,0,1)] ${
@@ -1181,7 +1226,11 @@ export default function FacultyDashboard() {
                 <label className="block text-xs font-bold uppercase tracking-wider text-black">Role</label>
                 <select
                   value={newRole}
-                  onChange={(e) => setNewRole(e.target.value as any)}
+                  onChange={(e) => {
+                    const role = e.target.value as 'student' | 'faculty';
+                    setNewRole(role);
+                    if (role !== 'faculty') setNewIsHod(false);
+                  }}
                   className="mt-1.5 block w-full px-3 py-2 bg-neuyellow text-black border-2 border-black rounded-xl text-sm font-bold focus:shadow-[3px_3px_0px_rgba(0,0,0,1)] transition-all"
                 >
                   <option value="student" className="bg-white text-black font-bold">Student</option>
@@ -1241,6 +1290,15 @@ export default function FacultyDashboard() {
                       className="mt-1.5 block w-full px-3 py-2 bg-white text-black border-2 border-black rounded-xl text-sm font-bold focus:shadow-[3px_3px_0px_rgba(0,0,0,1)] transition-all"
                     />
                   </div>
+                  <label className="flex items-center gap-2 text-xs font-bold text-black cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newIsHod}
+                      onChange={(e) => setNewIsHod(e.target.checked)}
+                      className="h-4 w-4 accent-black"
+                    />
+                    Department HOD (final signatory)
+                  </label>
                 </>
               )}
 
@@ -1249,7 +1307,7 @@ export default function FacultyDashboard() {
                 <input
                   type="password"
                   required
-                  placeholder="Minimum 6 characters"
+                  placeholder="Minimum 8 characters"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="mt-1.5 block w-full px-3 py-2 bg-neured/30 text-black border-2 border-black rounded-xl text-sm font-bold focus:shadow-[3px_3px_0px_rgba(0,0,0,1)] transition-all"
@@ -1297,14 +1355,16 @@ export default function FacultyDashboard() {
             <div className="p-3 bg-zinc-50 border-2 border-black rounded-xl text-xs font-semibold space-y-2">
               <p className="font-extrabold text-black">Spreadsheet CSV Format Guidelines:</p>
               <p className="font-mono text-[10px] text-zinc-600 bg-white p-2 border border-zinc-200 rounded">
-                role,name,identifier,password,designation<br/>
-                student,Rahul Reddy,24AK1A33D8,studentpwd,<br/>
-                faculty,Dr. K Ramesh,ramesh.k@aits-tpt.edu.in,facultypwd,Mentor
+                role,name,identifier,password,designation,is_hod<br/>
+                student,Rahul Reddy,24AK1A33D8,studentpwd,,<br/>
+                faculty,Dr. K Ramesh,ramesh.k@aits-tpt.edu.in,facultypwd,Mentor,false<br/>
+                faculty,Dr. S. Rao,s.rao@aits-tpt.edu.in,facultypwd,HOD,true
               </p>
               <ul className="list-disc pl-4 space-y-0.5 text-[10px] text-zinc-500">
-                <li>**role**: Either <code className="font-bold text-black">student</code> or <code className="font-bold text-black">faculty</code></li>
-                <li>**identifier**: Student **roll number** OR Faculty **email address**</li>
-                <li>**designation**: Required only for faculty (leave blank for students)</li>
+                <li><strong>role</strong>: Either <code className="font-bold text-black">student</code> or <code className="font-bold text-black">faculty</code></li>
+                <li><strong>identifier</strong>: Student <strong>roll number</strong> OR Faculty <strong>email address</strong></li>
+                <li><strong>designation</strong>: Required only for faculty (leave blank for students)</li>
+                <li><strong>is_hod</strong>: Optional; set to <code className="font-bold text-black">true</code> only for the department HOD</li>
               </ul>
             </div>
 

@@ -3,8 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, BellOff, Loader2, Check } from 'lucide-react';
 
-const DEFAULT_VAPID_PUBLIC_KEY = 'BHQ3EcqUAHhEnZJFSFuXJa2GtNQ6MXvXKVMHmqCfaz87edOrDKAm1pJYF5KCHo9MH2PlTaJInrNQ_kiEc3Jz9AY';
-
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -26,7 +24,11 @@ export default function PushNotificationToggle() {
     async function checkSubscription() {
       if (typeof window === 'undefined') return;
 
-      const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+      const supported =
+        Boolean(process.env.NEXT_PUBLIC_VAPID_KEY) &&
+        'serviceWorker' in navigator &&
+        'PushManager' in window &&
+        'Notification' in window;
       setIsSupported(supported);
 
       if (!supported) {
@@ -73,12 +75,17 @@ export default function PushNotificationToggle() {
         // 2. Request permission & Subscribe
         const permission = await Notification.requestPermission();
         if (permission !== 'granted') {
-          alert('Notification permission was denied. Please allow notifications in your browser settings.');
+          setStatusText('Permission denied');
           setLoading(false);
           return;
         }
 
-        const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_KEY || DEFAULT_VAPID_PUBLIC_KEY;
+        const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_KEY;
+        if (!vapidPublicKey) {
+          setStatusText('Push is not configured');
+          setLoading(false);
+          return;
+        }
         const convertedKey = urlBase64ToUint8Array(vapidPublicKey);
 
         const newSub = await registration.pushManager.subscribe({
@@ -99,9 +106,9 @@ export default function PushNotificationToggle() {
         setIsSubscribed(true);
         setStatusText('Push Notifications Enabled! 🎉');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Push notification toggle error:', err);
-      alert(err.message || 'Could not update push notification settings.');
+      setStatusText(err instanceof Error ? err.message : 'Could not update push settings');
     } finally {
       setLoading(false);
       setTimeout(() => setStatusText(''), 3000);

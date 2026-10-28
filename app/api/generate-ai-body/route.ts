@@ -1,56 +1,40 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClientServer } from '@/lib/supabase/server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { getAppUrl, getAuth, getProfile, jsonError, logError, parseJson } from '@/lib/api';
 import { aiGenerationLimiter } from '@/lib/rate-limit';
+import { aiGenerationSchema } from '@/lib/validation';
+
+interface OpenRouterResponse {
+  choices?: Array<{ message?: { content?: unknown } }>;
+  error?: { message?: unknown };
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClientServer();
-    const { data: { user } } = await supabase.auth.getUser();
-    const identifier = user?.id || request.headers.get('x-forwarded-for') || '127.0.0.1';
+    const { user } = await getAuth();
+    if (!user) return jsonError('Unauthorized.', 401);
 
-    const limitCheck = await aiGenerationLimiter.limit(identifier);
-    if (!limitCheck.success) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please wait a minute before generating another letter.' },
-        { status: 429 }
-      );
+    const limit = await aiGenerationLimiter.limit(user.id);
+    if (!limit.success) {
+      return jsonError('Too many AI generation requests. Please wait a minute and try again.', 429);
     }
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const profile = await getProfile(user.id);
+    if (!profile || profile.role !== 'student' || !profile.is_approved) {
+      return jsonError('Only approved students can use AI letter drafting.', 403);
     }
 
-    // Verify user role is student
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
+    const parsed = await parseJson(request, aiGenerationSchema);
+    if (!parsed.ok) return parsed.response;
 
-    if (profile?.role !== 'student') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const { description, tone, openRouterKey } = await request.json();
-
-    if (!openRouterKey) {
-      return NextResponse.json(
-        { error: 'OpenRouter API Key is missing. Please provide your API key to generate an AI-assisted letter.' },
-        { status: 400 }
-      );
-    }
-
-    if (!description || !tone) {
-      return NextResponse.json(
-        { error: 'Description and tone are required' },
-        { status: 400 }
-      );
-    }
-
-    const openRouterUrl = process.env.NEXT_PUBLIC_OPENROUTER_API_URL || 'https://openrouter.ai/api/v1';
+    const { description, tone, openRouterKey } = parsed.data;
+    const openRouterUrl =
+      (process.env.OPENROUTER_API_URL || process.env.NEXT_PUBLIC_OPENROUTER_API_URL)?.replace(
+        /\/$/,
+        ''
+      ) || 'https://openrouter.ai/api/v1';
 
     const systemPrompt = `You are an AI assistant helping a college student write the body paragraphs of a formal letter to their department faculty.
-    
+
 CRITICAL INSTRUCTION: Write ONLY the body paragraphs of the letter.
 - Do NOT include any address blocks (To/From).
 - Do NOT include a date.
@@ -62,48 +46,63 @@ CRITICAL INSTRUCTION: Write ONLY the body paragraphs of the letter.
 
 Student's prompt / details: ${description}`;
 
-    // Call OpenRouter API using student's BYOK key
-    const apiResponse = await fetch(`${openRouterUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openRouterKey}`,
-        'HTTP-Referer': request.headers.get('referer') || 'https://campus-letter-tpt.vercel.app',
-        'X-Title': 'Campus Letter Automation Platform',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash', // Standard high-quality model for text generation
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: 'Generate the letter body paragraphs based on the instruction.' }
-        ],
-        temperature: 0.7,
-        max_tokens: 1000,
-      }),
-    });
+    let apiResponse: Response;
+    try {
+      apiResponse = await fetch(`${openRouterUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${openRouterKey}`,
+          'HTTP-Referer': getAppUrl(request),
+          'X-Title': 'Campus Letter Automation Platform',
+        },
+        body: JSON.stringify({
+          model: process.env.OPENROUTER_MODEL || 'google/gemini-2.5-flash',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: 'Generate the letter body paragraphs based on the instruction.' },
+          ],
+          temperature: 0.7,
+          max_tokens: 1000,
+        }),
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch (error) {
+      logError('generate-ai-body.fetch', error);
+      return jsonError('The AI service did not respond in time. Please try again.', 504);
+    }
 
-    const data = await apiResponse.json();
+    let data: OpenRouterResponse | null = null;
+    try {
+      data = (await apiResponse.json()) as OpenRouterResponse;
+    } catch {
+      data = null;
+    }
 
     if (!apiResponse.ok) {
-      console.error('OpenRouter error response:', data);
-      const errorMessage = data?.error?.message || 'OpenRouter API call failed.';
-      return NextResponse.json(
-        { error: `OpenRouter Error: ${errorMessage}` },
-        { status: apiResponse.status }
-      );
+      logError('generate-ai-body.provider', { status: apiResponse.status });
+      if (apiResponse.status === 401 || apiResponse.status === 403) {
+        return jsonError('The AI provider rejected your API key. Check the key and try again.', 401);
+      }
+      if (apiResponse.status === 429) {
+        return jsonError('The AI provider is rate limiting this key. Please wait and try again.', 429);
+      }
+      return jsonError('The AI provider could not generate the letter body. Please try again.', 502);
     }
 
-    const generatedText = data?.choices?.[0]?.message?.content?.trim();
-    if (!generatedText) {
-      throw new Error('No content returned from OpenRouter.');
+    const generatedText = data?.choices?.[0]?.message?.content;
+    if (typeof generatedText !== 'string' || !generatedText.trim()) {
+      return jsonError('The AI provider returned an empty response. Please try again.', 502);
     }
 
-    return NextResponse.json({ body: generatedText });
-  } catch (error: any) {
-    console.error('Unexpected AI letter generation error:', error);
-    return NextResponse.json(
-      { error: 'Internal Server Error' },
-      { status: 500 }
-    );
+    const body = generatedText.trim();
+    if (body.length > 8000) {
+      return jsonError('The generated letter is too long. Please shorten the description and try again.', 400);
+    }
+
+    return NextResponse.json({ body });
+  } catch (error) {
+    logError('generate-ai-body', error);
+    return jsonError('Unable to generate the letter body. Please try again.', 500);
   }
 }

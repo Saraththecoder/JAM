@@ -20,7 +20,7 @@ export default function SplashScreen() {
       onComplete: () => {
         setVisible(false); // remove from DOM
         if (typeof window !== 'undefined') {
-          (window as any).__splashScreenComplete = true;
+          (window as Window & { __splashScreenComplete?: boolean }).__splashScreenComplete = true;
           window.dispatchEvent(new CustomEvent('splashScreenComplete'));
         }
       }

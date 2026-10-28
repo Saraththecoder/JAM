@@ -3,12 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { ShieldCheck, ShieldAlert, FileText, Calendar, User, Clock, CheckCircle } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, FileText, User, Clock, CheckCircle } from 'lucide-react';
 
 interface Letter {
+  found: boolean;
+  approved: boolean;
   id: string;
   created_at: string;
-  generated_body: string;
   status: string;
   reference_number: string | null;
   mentor_signed_at: string | null;
@@ -22,16 +23,16 @@ interface Letter {
     roll_number: string;
     departments: {
       name: string;
-    };
+    } | null;
   };
   mentor?: {
     full_name: string;
-    designation: string;
-  };
+    designation: string | null;
+  } | null;
   hod?: {
     full_name: string;
-    designation: string;
-  };
+    designation: string | null;
+  } | null;
 }
 
 export default function VerificationPage() {
@@ -79,18 +80,14 @@ export default function VerificationPage() {
 
       if (!res.ok || !contentType || !contentType.includes('application/json')) {
         let errorMsg = 'Failed to generate download link.';
-        if (contentType && contentType.includes('application/json')) {
-          const data = await res.json();
+        if (contentType?.includes('application/json')) {
+          const data = (await res.json()) as { error?: string };
           errorMsg = data.error || errorMsg;
-        } else if (res.ok && contentType && contentType.includes('text/html')) {
-          errorMsg = 'Failed to fetch PDF path: Redirected to login page or template not found. Please log in or check permission scopes.';
-        } else {
-          errorMsg = `Server error (${res.status}): ${res.statusText || 'Verify your environment config (Supabase Service Role Key).'}`;
         }
         throw new Error(errorMsg);
       }
 
-      const data = await res.json();
+      const data = (await res.json()) as { signedUrl: string };
 
       // Trigger programmatic download of the file
       const link = document.createElement('a');
@@ -99,9 +96,9 @@ export default function VerificationPage() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Download error:', err);
-      setDownloadError(err.message || 'Could not download PDF.');
+      setDownloadError(err instanceof Error ? err.message : 'Could not download PDF.');
     } finally {
       setDownloading(false);
     }
@@ -139,10 +136,10 @@ export default function VerificationPage() {
           throw new Error(`This document is ${statusLabel} and has not completed the approval process yet.`);
         }
 
-        setLetter(rpcData as any);
-      } catch (err: any) {
+        setLetter(rpcData as unknown as Letter);
+      } catch (err: unknown) {
         console.error('Verification error:', err);
-        setError(err.message || 'Could not verify document.');
+        setError(err instanceof Error ? err.message : 'Could not verify document.');
       } finally {
         setLoading(false);
       }
@@ -262,16 +259,6 @@ export default function VerificationPage() {
             </div>
           </div>
 
-          {/* Letter Body Preview */}
-          <div>
-            <h3 className="text-xs font-extrabold uppercase tracking-wider text-black mb-3 flex items-center gap-1.5 font-sans">
-              <FileText className="w-4 h-4 text-black" /> Letter Document Body
-            </h3>
-            <div className="p-4 bg-white rounded-xl border-2 border-black max-h-60 overflow-y-auto text-xs font-serif text-black whitespace-pre-wrap leading-relaxed shadow-inner italic font-medium">
-              {letter.generated_body}
-            </div>
-          </div>
-
           {/* Cryptographic Checksum Check */}
           {letter.pdf_hash && (
             <div className="pt-6 border-t-2 border-dashed border-black/35 space-y-4">
@@ -283,7 +270,7 @@ export default function VerificationPage() {
                 <p className="font-extrabold uppercase tracking-wide text-[10px]">Verification Guidance</p>
                 <ul className="list-disc pl-4 space-y-1 text-zinc-700 text-[10.5px]">
                   <li>
-                    <span className="font-bold text-black">Physical / Paper Check:</span> Compare the student details, signatures log, and document text body displayed on this screen directly against the printed letter. Any text mismatch indicates tampering.
+                    <span className="font-bold text-black">Physical / Paper Check:</span> Compare the student details and signature log on this screen against the printed letter. The document body is contained in the signed PDF.
                   </li>
                   <li>
                     <span className="font-bold text-black">Digital PDF Check:</span> If you received a digital PDF file, drag and drop it into the box below to run an instant SHA-256 cryptographic check confirming it has not been modified.
@@ -376,6 +363,11 @@ export default function VerificationPage() {
                         <p className="text-[10px] text-black/80 font-medium mt-0.5">
                           The file is authentic. Its SHA-256 checksum matches the signed database registry hash exactly.
                         </p>
+                        {computedHash && (
+                          <p className="text-[9px] text-black/60 font-mono mt-1 break-all">
+                            SHA-256: {computedHash}
+                          </p>
+                        )}
                       </div>
                     ) : (
                       <div>

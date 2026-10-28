@@ -1,15 +1,20 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import StatusBadge from '@/components/StatusBadge';
-import Logo from '@/components/Logo';
 import Navbar from '@/components/Navbar';
-import { 
-  FileText, ArrowLeft, Check, X, RefreshCw, AlertCircle, 
-  Calendar, User, HelpCircle, Eye, ShieldCheck 
+import {
+  ArrowLeft,
+  Check,
+  X,
+  RefreshCw,
+  AlertCircle,
+  User,
+  Eye,
+  ShieldCheck,
 } from 'lucide-react';
 
 interface Letter {
@@ -18,8 +23,8 @@ interface Letter {
   generated_body: string;
   status: 'pending' | 'approved' | 'rejected' | 'pending_mentor' | 'pending_hod';
   rejection_reason: string | null;
-  mentor_id: string;
-  hod_id: string;
+  mentor_id: string | null;
+  hod_id: string | null;
   mentor_signed_at: string | null;
   hod_signed_at: string | null;
   letter_types: {
@@ -28,9 +33,10 @@ interface Letter {
   student: {
     full_name: string;
     roll_number: string;
+    department_id: string | null;
     departments: {
       name: string;
-    };
+    } | null;
   };
   mentor?: {
     full_name: string;
@@ -47,15 +53,24 @@ export default function FacultyReviewPage() {
 
   const formatDate = (dateVal: string) => {
     const d = new Date(dateVal);
-    if (isNaN(d.getTime())) return '—';
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    if (Number.isNaN(d.getTime())) return '—';
+    return new Intl.DateTimeFormat('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).format(d);
   };
   const params = useParams();
   const letterId = params.id as string;
 
   const [letter, setLetter] = useState<Letter | null>(null);
-  const [profile, setProfile] = useState<{ id: string; full_name: string; designation: string } | null>(null);
+  const [profile, setProfile] = useState<{
+    id: string;
+    full_name: string;
+    designation: string;
+    is_hod: boolean;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +82,7 @@ export default function FacultyReviewPage() {
 
   const supabase = createClient();
 
-  const fetchLetter = async () => {
+  const fetchLetter = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -77,7 +92,6 @@ export default function FacultyReviewPage() {
         return;
       }
 
-      // Fetch the letter details with mentor and HOD nodes
       const { data, error: fetchError } = await supabase
         .from('letters')
         .select(`
@@ -99,47 +113,48 @@ export default function FacultyReviewPage() {
         .single();
 
       if (fetchError || !data) {
-        throw new Error(fetchError?.message || 'Letter not found or access denied.');
+        throw new Error('Letter not found or access denied.');
       }
 
-      // Fetch active faculty profile
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('id, full_name, designation')
+        .select('id, full_name, designation, is_hod')
         .eq('id', user.id)
         .single();
-      
-      setProfile(profileData as any);
-      setLetter(data as any);
 
-      // Fetch approved HOD in student's department if HOD is not assigned yet
-      if ((data.student as any)?.department_id) {
-        const { data: hodData } = await supabase
+      const letterData = data as unknown as Letter;
+      setProfile(profileData as unknown as typeof profile);
+      setLetter(letterData);
+
+      if (letterData.student?.department_id) {
+        const { data: hodData, error: hodError } = await supabase
           .from('profiles')
           .select('id, full_name')
           .eq('role', 'faculty')
-          .eq('department_id', (data.student as any).department_id)
+          .eq('department_id', letterData.student.department_id)
           .eq('is_approved', true)
-          .or('designation.ilike.%hod%,designation.ilike.%head%')
-          .limit(1);
+          .eq('is_hod', true)
+          .limit(1)
+          .maybeSingle();
 
-        if (hodData && hodData.length > 0) {
-          setDepartmentHod(hodData[0]);
-        }
+        if (hodError) throw new Error('Unable to load the department HOD configuration.');
+        setDepartmentHod(hodData ? (hodData as { id: string; full_name: string }) : null);
+      } else {
+        setDepartmentHod(null);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error fetching letter details:', err);
-      setError(err?.message || 'Could not load letter details.');
+      setError(err instanceof Error ? err.message : 'Could not load letter details.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [letterId, router, supabase]);
 
   useEffect(() => {
-    if (letterId) {
-      fetchLetter();
-    }
-  }, [letterId, router, supabase]);
+    // Initial data fetch; the setState calls happen inside the async callback.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (letterId) void fetchLetter();
+  }, [fetchLetter, letterId]);
 
   const handleApprove = async () => {
     if (!letter || !profile) return;
@@ -181,9 +196,9 @@ export default function FacultyReviewPage() {
       } else {
         throw new Error('You do not have active review permission for this approval step.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error approving letter:', err);
-      setError(err?.message || 'Error occurred during approval processing.');
+      setError(err instanceof Error ? err.message : 'Error occurred during approval processing.');
       setActionLoading(false);
     }
   };
@@ -197,34 +212,22 @@ export default function FacultyReviewPage() {
     setError(null);
 
     try {
-      // Update letter record: status = pending_hod, hod_id = department HOD, update recipient to HOD
-      const { error: updateError } = await supabase
-        .from('letters')
-        .update({
-          status: 'pending_hod',
-          hod_id: departmentHod.id,
-          faculty_id: departmentHod.id,
-          mentor_signed_at: new Date().toISOString(),
-        })
-        .eq('id', letter.id);
-
-      if (updateError) throw updateError;
-
-      // Trigger notification email to HOD (asynchronous)
-      fetch('/api/notify', {
+      const response = await fetch('/api/letters/forward', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          letterId: letter.id,
-          type: 'mentor_approved',
-        }),
-      }).catch((e) => console.error('Failed to trigger HOD email:', e));
+        body: JSON.stringify({ letterId: letter.id }),
+      });
+
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error || 'Error occurred during forwarding.');
+      }
 
       router.push('/faculty/dashboard');
       router.refresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error forwarding letter:', err);
-      setError(err?.message || 'Error occurred during forwarding.');
+      setError(err instanceof Error ? err.message : 'Error occurred during forwarding.');
       setActionLoading(false);
     }
   };
@@ -232,7 +235,7 @@ export default function FacultyReviewPage() {
   const handleReject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!rejectionReason.trim()) {
-      alert('Please provide a reason for rejection.');
+      setError('Please provide a reason for rejection.');
       return;
     }
 
@@ -241,37 +244,22 @@ export default function FacultyReviewPage() {
     setError(null);
 
     try {
-      // 1. Update DB status to rejected, record who declined it
-      const { error: updateError } = await supabase
-        .from('letters')
-        .update({
-          status: 'rejected',
-          rejection_reason: rejectionReason.trim(),
-          rejection_by: profile?.id,
-        })
-        .eq('id', letterId);
-
-      if (updateError) {
-        throw new Error(`Failed to reject request: ${updateError.message}`);
-      }
-
-      // 2. Trigger notification email to student (asynchronous)
-      fetch('/api/notify', {
+      const response = await fetch('/api/letters/reject', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          letterId,
-          type: 'rejection',
-          rejectionReason: rejectionReason.trim(),
-        }),
-      }).catch((e) => console.error('Failed to trigger rejection email:', e));
+        body: JSON.stringify({ letterId, reason: rejectionReason.trim() }),
+      });
 
-      // 3. Return to dashboard
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to reject letter.');
+      }
+
       router.push('/faculty/dashboard');
       router.refresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error rejecting letter:', err);
-      setError(err?.message || 'Failed to reject letter.');
+      setError(err instanceof Error ? err.message : 'Failed to reject letter.');
       setActionLoading(false);
     }
   };
@@ -444,27 +432,28 @@ export default function FacultyReviewPage() {
 
                   <div className="space-y-3">
                     {isPendingMentorStep ? (
-                      <>
-                        <button
-                          onClick={handleApprove}
-                          disabled={actionLoading}
-                          className="w-full paper-btn flex justify-center items-center gap-2 py-3 px-4 rounded-xl text-xs font-bold disabled:opacity-55 bg-neugreen! text-black cursor-pointer"
-                        >
-                          Approve & Sign Directly
-                        </button>
+                      departmentHod ? (
                         <button
                           onClick={handleForwardToHod}
-                          disabled={actionLoading || !departmentHod}
+                          disabled={actionLoading}
                           className="w-full paper-btn flex justify-center items-center gap-2 py-3 px-4 rounded-xl text-xs font-bold disabled:opacity-55 bg-neuyellow! text-black cursor-pointer"
                         >
                           Forward to HOD
                         </button>
-                        {!departmentHod && (
+                      ) : (
+                        <>
+                          <button
+                            onClick={handleApprove}
+                            disabled={actionLoading}
+                            className="w-full paper-btn flex justify-center items-center gap-2 py-3 px-4 rounded-xl text-xs font-bold disabled:opacity-55 bg-neugreen! text-black cursor-pointer"
+                          >
+                            Approve &amp; Sign (No HOD Configured)
+                          </button>
                           <p className="text-[10px] text-zinc-650 font-bold leading-snug">
-                            ⚠️ HOD account is not registered/approved in your department. Forwarding is disabled.
+                            No approved HOD is configured for this department, so your signature is final.
                           </p>
-                        )}
-                      </>
+                        </>
+                      )
                     ) : (
                       <button
                         onClick={handleApprove}
@@ -508,7 +497,7 @@ export default function FacultyReviewPage() {
                     <p className="text-xs text-zinc-500 font-bold">This request has been declined.</p>
                     <div className="p-3 bg-neured border-2 border-black rounded-xl text-xs text-black font-bold shadow-[2px_2px_0px_rgba(0,0,0,1)]">
                       <span className="font-extrabold text-black block mb-1">Feedback Reason:</span>
-                      <span className="text-black italic">"{letter.rejection_reason}"</span>
+                      <span className="text-black italic">&quot;{letter.rejection_reason}&quot;</span>
                     </div>
                   </div>
                 )}

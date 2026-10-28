@@ -1,100 +1,128 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClientServer, createAdminClient } from '@/lib/supabase/server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { createAdminClient } from '@/lib/supabase/server';
+import {
+  getAuth,
+  getProfile,
+  isApprovedFaculty,
+  jsonError,
+  logError,
+  parseJson,
+} from '@/lib/api';
 import { uploadSignatureLimiter } from '@/lib/rate-limit';
+import { signatureUploadSchema } from '@/lib/validation';
+import { writeAuditLog } from '@/lib/audit';
+
+const MAX_SIGNATURE_BYTES = 2 * 1024 * 1024;
+
+function isPng(buffer: Buffer): boolean {
+  return (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  );
+}
+
+function isJpeg(buffer: Buffer): boolean {
+  return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+}
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClientServer();
-    const { data: { user } } = await supabase.auth.getUser();
-    const identifier = user?.id || request.headers.get('x-forwarded-for') || '127.0.0.1';
+    const { user } = await getAuth();
+    if (!user) return jsonError('Unauthorized.', 401);
 
-    const limitCheck = await uploadSignatureLimiter.limit(identifier);
-    if (!limitCheck.success) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please wait a minute before uploading your signature again.' },
-        { status: 429 }
-      );
+    const limit = await uploadSignatureLimiter.limit(user.id);
+    if (!limit.success) {
+      return jsonError('Too many signature uploads. Please wait a minute and try again.', 429);
     }
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const profile = await getProfile(user.id);
+    if (!isApprovedFaculty(profile)) {
+      return jsonError('Only approved faculty members can upload signatures.', 403);
     }
 
-    const { userId, fileBase64, fileType } = await request.json();
+    const parsed = await parseJson(request, signatureUploadSchema, 4 * 1024 * 1024);
+    if (!parsed.ok) return parsed.response;
 
-    if (user.id !== userId) {
-      return NextResponse.json({ error: 'Forbidden: You can only upload your own signature.' }, { status: 403 });
+    const { userId, fileBase64, fileType } = parsed.data;
+    if (userId !== user.id) {
+      return jsonError('You can only upload your own signature.', 403);
     }
 
-    if (!userId || !fileBase64 || !fileType) {
-      return NextResponse.json(
-        { error: 'userId, fileBase64, and fileType are required' },
-        { status: 400 }
-      );
+    const base64Data = fileBase64.replace(/^data:image\/(?:png|jpeg|jpg);base64,/, '');
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(base64Data)) {
+      return jsonError('The signature image is not valid base64 data.', 400);
     }
 
-    // Clean up base64 string if it contains prefix
-    const base64Data = fileBase64.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
-    
-    // Extract file extension
-    let ext = 'png';
-    if (fileType.includes('jpeg') || fileType.includes('jpg')) {
-      ext = 'jpg';
-    } else if (fileType.includes('svg')) {
-      ext = 'svg';
+    if (buffer.length === 0 || buffer.length > MAX_SIGNATURE_BYTES) {
+      return jsonError('The signature image must be smaller than 2 MB.', 400);
     }
 
-    const storagePath = `${userId}/esign.${ext}`;
-    const adminClient = createAdminClient();
+    const isPngFile = fileType === 'image/png';
+    const validMagic = isPngFile ? isPng(buffer) : isJpeg(buffer);
+    if (!validMagic) {
+      return jsonError('The uploaded file does not match its declared image type.', 400);
+    }
 
-    // Verify user role is faculty
-    const { data: profile, error: profileErr } = await adminClient
+    const extension = isPngFile ? 'png' : 'jpg';
+    const storagePath = `${userId}/esign.${extension}`;
+    const admin = createAdminClient();
+
+    const { data: currentProfile } = await admin
       .from('profiles')
-      .select('role')
+      .select('esign_storage_path')
       .eq('id', user.id)
       .single();
 
-    if (profileErr || !profile || profile.role !== 'faculty') {
-      return NextResponse.json({ error: 'Forbidden: Only faculty can upload signatures.' }, { status: 403 });
-    }
+    const previousPath = (currentProfile as { esign_storage_path?: string | null } | null)
+      ?.esign_storage_path;
 
-    // 1. Upload signature image to private storage bucket using admin client
-    const { error: uploadError } = await adminClient.storage
-      .from('signatures')
-      .upload(storagePath, buffer, {
-        contentType: fileType,
-        upsert: true,
-      });
+    const { error: uploadError } = await admin.storage.from('signatures').upload(storagePath, buffer, {
+      contentType: fileType,
+      upsert: true,
+    });
 
     if (uploadError) {
-      console.error('Signature upload error:', uploadError);
-      return NextResponse.json(
-        { error: `Failed to upload e-signature: ${uploadError.message}` },
-        { status: 500 }
-      );
+      logError('upload-signature.storage', uploadError);
+      return jsonError('Unable to upload the signature. Please try again.', 500);
     }
 
-    // 2. Update profiles table with the signature storage path
-    const { error: profileError } = await adminClient
+    const { data: updatedProfile, error: profileError } = await admin
       .from('profiles')
       .update({ esign_storage_path: storagePath })
-      .eq('id', userId);
+      .eq('id', user.id)
+      .select('id')
+      .maybeSingle();
 
-    if (profileError) {
-      console.error('Profile update error:', profileError);
-      return NextResponse.json(
-        { error: `Failed to update profile: ${profileError.message}` },
-        { status: 500 }
-      );
+    if (profileError || !updatedProfile) {
+      logError('upload-signature.profile', profileError);
+      if (previousPath !== storagePath) {
+        await admin.storage.from('signatures').remove([storagePath]);
+      }
+      return jsonError('Unable to save the signature reference. Please try again.', 500);
     }
 
+    if (previousPath && previousPath !== storagePath && previousPath.startsWith(`${user.id}/`)) {
+      const { error: removeError } = await admin.storage.from('signatures').remove([previousPath]);
+      if (removeError) logError('upload-signature.removeOld', removeError);
+    }
+
+    await writeAuditLog({
+      actorId: user.id,
+      action: 'signature.updated',
+      metadata: { storagePath, fileType },
+    });
+
     return NextResponse.json({ success: true, path: storagePath });
-  } catch (error: any) {
-    console.error('Unexpected upload-signature error:', error);
-    return NextResponse.json(
-      { error: 'Internal Server Error' },
-      { status: 500 }
-    );
+  } catch (error) {
+    logError('upload-signature', error);
+    return jsonError('Unable to upload the signature. Please try again.', 500);
   }
 }

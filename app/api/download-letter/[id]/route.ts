@@ -1,6 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createClientServer, createAdminClient } from '@/lib/supabase/server';
-import { rateLimit } from '@/lib/rate-limit';
+import { NextResponse, type NextRequest } from 'next/server';
+import { createAdminClient } from '@/lib/supabase/server';
+import { getAuth, getClientIp, jsonError, logError } from '@/lib/api';
+import { downloadLetterLimiter } from '@/lib/rate-limit';
+import { uuidSchema } from '@/lib/validation';
+
+interface DownloadableLetter {
+  status: string;
+  student_id: string;
+  faculty_id: string | null;
+  mentor_id: string | null;
+  hod_id: string | null;
+  pdf_storage_path: string | null;
+  reference_number: string | null;
+}
 
 export async function GET(
   request: NextRequest,
@@ -8,102 +20,74 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    
-    if (!id) {
-      return NextResponse.json({ error: 'Letter ID is required' }, { status: 400 });
+    const idCheck = uuidSchema.safeParse(id);
+    if (!idCheck.success) {
+      return jsonError('Invalid letter ID.', 400);
     }
 
-    // 1. Rate Limiting Check
-    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
-    const limitCheck = rateLimit(ip, 20, 60 * 1000); // 20 downloads per minute
-    if (!limitCheck.success) {
-      return NextResponse.json(
-        { error: 'Too many requests. Please wait a minute before downloading again.' },
-        { status: 429 }
-      );
+    const limit = await downloadLetterLimiter.limit(getClientIp(request));
+    if (!limit.success) {
+      return jsonError('Too many download attempts. Please wait a minute and try again.', 429);
     }
 
-    // 2. Defensive Environment Variables Check
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json(
-        { error: 'Server configuration error: SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL is missing in environment variables. Please check your dashboard settings.' },
-        { status: 500 }
-      );
-    }
-
-    const adminClient = createAdminClient();
-
-    // 3. Query the letter status and storage path using admin client (bypasses RLS)
-    const { data: letter, error: letterError } = await adminClient
+    const admin = createAdminClient();
+    const { data: letterData, error: letterError } = await admin
       .from('letters')
       .select('status, student_id, faculty_id, mentor_id, hod_id, pdf_storage_path, reference_number')
-      .eq('id', id)
+      .eq('id', idCheck.data)
       .single();
 
-    if (letterError || !letter) {
-      return NextResponse.json({ error: 'Letter not found' }, { status: 404 });
+    if (letterError || !letterData) {
+      return jsonError('Letter not found.', 404);
     }
 
-    // 4. Check authorization: public allowed if approved, otherwise must be participant
+    const letter = letterData as unknown as DownloadableLetter;
     const isApproved = letter.status === 'approved';
-    let isParticipant = false;
 
     if (!isApproved) {
-      // Only invoke cookie-dependent createClientServer if not approved to prevent static context issues
-      try {
-        const supabase = await createClientServer();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          isParticipant = 
-            user.id === letter.student_id || 
-            user.id === letter.faculty_id || 
-            user.id === letter.mentor_id || 
-            user.id === letter.hod_id;
-        }
-      } catch (authError) {
-        console.error('Failed to resolve dynamic server session:', authError);
+      const { user } = await getAuth();
+      const isParticipant = Boolean(
+        user &&
+          (user.id === letter.student_id ||
+            user.id === letter.faculty_id ||
+            user.id === letter.mentor_id ||
+            user.id === letter.hod_id)
+      );
+
+      if (!isParticipant) {
+        return jsonError('You do not have permission to download this letter.', 403);
       }
     }
 
-    if (!isApproved && !isParticipant) {
-      return NextResponse.json({ error: 'Unauthorized or Forbidden' }, { status: 403 });
-    }
-
     if (!letter.pdf_storage_path) {
-      return NextResponse.json(
-        { error: 'PDF file is not generated or signed yet.' },
-        { status: 400 }
-      );
+      return jsonError('This letter has not been signed yet.', 409);
     }
 
-    // 5. Generate signed read URL expiring in 60 seconds (forcing direct attachment download)
+    // Defence in depth: the only valid storage path is the server-generated one.
+    if (letter.pdf_storage_path !== `${idCheck.data}.pdf`) {
+      logError('download-letter.invalidPath', new Error('Unexpected PDF storage path.'));
+      return jsonError('This letter document is unavailable.', 409);
+    }
+
     const safeFilename = letter.reference_number
-      ? `${letter.reference_number.replace(/\//g, '_')}.pdf`
+      ? `${letter.reference_number.replace(/[^A-Za-z0-9._-]/g, '_')}.pdf`
       : 'letter.pdf';
 
-    const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
+    const { data: signedUrlData, error: signedUrlError } = await admin.storage
       .from('letters')
-      .createSignedUrl(letter.pdf_storage_path, 60, {
-        download: safeFilename
-      });
+      .createSignedUrl(letter.pdf_storage_path, 60, { download: safeFilename });
 
     if (signedUrlError || !signedUrlData?.signedUrl) {
-      console.error('Error generating signed URL:', signedUrlError);
-      return NextResponse.json(
-        { error: 'Failed to generate download URL from storage.' },
-        { status: 500 }
-      );
+      logError('download-letter.signedUrl', signedUrlError);
+      return jsonError('Unable to prepare the download. Please try again.', 500);
     }
 
-    return NextResponse.json({ signedUrl: signedUrlData.signedUrl });
-  } catch (error: any) {
-    console.error('Unexpected download-letter error:', error);
     return NextResponse.json(
-      { error: 'Internal Server Error' },
-      { status: 500 }
+      { signedUrl: signedUrlData.signedUrl },
+      { headers: { 'Cache-Control': 'no-store' } }
     );
+  } catch (error) {
+    logError('download-letter', error);
+    return jsonError('Unable to download the letter. Please try again.', 500);
   }
 }

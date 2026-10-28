@@ -22,8 +22,9 @@ export default function FacultyRegisterDisabledPage() {
           <ShieldAlert className="w-16 h-16 text-black mx-auto mb-4 animate-bounce" />
           <h2 className="text-xl font-serif font-black text-black mb-2">Registration Closed</h2>
           <p className="text-xs text-black/85 mb-6 leading-relaxed font-bold">
-            Public faculty registration is disabled to prevent unauthorized account creation. 
-            All faculty credentials are created and managed by the **Head of the Department (HOD)**.
+            Public faculty registration is disabled to prevent unauthorized account creation.
+            All faculty credentials are created and managed by the{' '}
+            <strong>Head of the Department (HOD)</strong>.
           </p>
           <div className="p-4 bg-white border-2 border-black rounded-xl text-xs font-bold text-left mb-6 shadow-[2px_2px_0px_rgba(0,0,0,1)]">
             <p className="font-extrabold text-black mb-1">To Get Your Credentials:</p>

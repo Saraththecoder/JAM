@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Outfit, Newsreader } from 'next/font/google';
+import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration';
 import './globals.css';
 
 const outfit = Outfit({
@@ -31,12 +32,15 @@ export const metadata: Metadata = {
   authors: [{ name: 'AITS AI&ML Department' }],
   icons: {
     icon: [
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
       { url: '/icon.svg', type: 'image/svg+xml' },
-      { url: '/favicon.ico', sizes: 'any' }
+      { url: '/favicon.ico', sizes: 'any' },
     ],
     shortcut: '/favicon.ico',
-    apple: '/favicon.ico',
+    apple: '/icons/icon-180.png',
   },
+  manifest: '/manifest.webmanifest',
   openGraph: {
     title: 'JAM — Just A Minute',
     description: 'Automated letter routing, digital signing, and real-time approval for AITS Tirupati.',
@@ -54,6 +58,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${outfit.variable} ${newsreader.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col bg-[#fbfaf7] text-[#1c1a17]">
+        <ServiceWorkerRegistration />
         {children}
       </body>
     </html>

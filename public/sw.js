@@ -11,8 +11,11 @@ self.addEventListener('push', function (event) {
   };
 
   try {
-    payload = event.data.json();
-  } catch (e) {
+    const incoming = event.data.json();
+    if (incoming && typeof incoming === 'object') {
+      payload = { ...payload, ...incoming };
+    }
+  } catch {
     payload.body = event.data.text();
   }
 
@@ -36,9 +39,16 @@ self.addEventListener('push', function (event) {
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
 
-  const targetUrl = event.notification.data && event.notification.data.url 
-    ? event.notification.data.url 
+  let targetUrl = event.notification.data && event.notification.data.url
+    ? event.notification.data.url
     : '/';
+
+  try {
+    const parsed = new URL(targetUrl, self.location.origin);
+    if (parsed.origin !== self.location.origin) targetUrl = '/';
+  } catch {
+    targetUrl = '/';
+  }
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
