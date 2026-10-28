@@ -20,7 +20,7 @@ These cannot be generated without the deployed app and real accounts:
 - A short description (80 characters max).
 - A full description.
 - App access instructions and a working test account for Play review.
-- A public privacy policy URL: `https://YOUR_DOMAIN/privacy`.
+- A public privacy policy URL: `https://justaminuteaits.vercel.app/privacy`.
 - Data safety answers.
 - Content rating questionnaire.
 - Account deletion flow/link (see `PLAY_STORE.md`).

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.aits.jam",
+      "sha256_cert_fingerprints": [
+        "29:06:C6:5E:DD:FA:AE:76:1D:25:90:4B:F2:F1:01:C4:65:6B:9F:36:50:04:E0:82:1F:54:F1:56:17:7C:35:1B"
+      ]
+    }
+  }
+]

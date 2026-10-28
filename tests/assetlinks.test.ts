@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import checkedInAssetLinks from '../android/assetlinks.json';
 import { GET } from '../app/.well-known/assetlinks.json/route';
 
 const FINGERPRINT = Array.from({ length: 32 }, () => 'AA').join(':');
@@ -19,12 +20,26 @@ describe('Android asset links', () => {
     else process.env.ANDROID_SHA256_CERT_FINGERPRINTS = originalFingerprints;
   });
 
-  it('returns a configuration error until fingerprints are set', async () => {
+  it('falls back to the checked-in upload-key statement', async () => {
+    const response = GET();
+    expect(response.status).toBe(200);
+
+    const body = (await response.json()) as Array<{
+      target: { package_name: string; sha256_cert_fingerprints: string[] };
+    }>;
+    expect(body[0].target.package_name).toBe(checkedInAssetLinks[0].target.package_name);
+    expect(body[0].target.sha256_cert_fingerprints).toEqual(
+      checkedInAssetLinks[0].target.sha256_cert_fingerprints
+    );
+  });
+
+  it('rejects malformed environment fingerprints', async () => {
+    process.env.ANDROID_SHA256_CERT_FINGERPRINTS = 'not-a-fingerprint';
     const response = GET();
     expect(response.status).toBe(503);
   });
 
-  it('returns a valid Digital Asset Links statement', async () => {
+  it('returns the environment override as a Digital Asset Links statement', async () => {
     process.env.ANDROID_PACKAGE_NAME = 'com.aits.jam';
     process.env.ANDROID_SHA256_CERT_FINGERPRINTS = FINGERPRINT.toLowerCase();
 

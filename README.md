@@ -89,8 +89,8 @@ See [SECURITY.md](SECURITY.md) for the full policy.
 
 The web app is packaged for Android as a Trusted Web Activity (TWA), so the
 Play Store app loads the deployed Next.js application instead of duplicating the
-UI. A generated Android project is included under `android/` with the placeholder
-host `jam.example.com`; replace it with your production domain before building.
+UI. A generated Android project is included under `android/` and configured for
+`https://justaminuteaits.vercel.app`.
 See [`android/README.md`](android/README.md) for the Bubblewrap build and
 signing steps, and [`PLAY_STORE.md`](PLAY_STORE.md) for the submission checklist.
 

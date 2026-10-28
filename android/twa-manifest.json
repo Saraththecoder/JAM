@@ -1,6 +1,6 @@
 {
   "packageId": "com.aits.jam",
-  "host": "jam.example.com",
+  "host": "justaminuteaits.vercel.app",
   "name": "JAM - Just A Minute",
   "launcherName": "JAM",
   "display": "standalone",
@@ -13,8 +13,8 @@
   "backgroundColor": "#FBFAF7",
   "enableNotifications": true,
   "startUrl": "/",
-  "iconUrl": "https://jam.example.com/icons/icon-512.png",
-  "maskableIconUrl": "https://jam.example.com/icons/icon-maskable-512.png",
+  "iconUrl": "https://justaminuteaits.vercel.app/icons/icon-512.png",
+  "maskableIconUrl": "https://justaminuteaits.vercel.app/icons/icon-maskable-512.png",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
     "path": "./android-keystore",
@@ -24,7 +24,7 @@
   "appVersionCode": 1,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
-  "webManifestUrl": "https://jam.example.com/manifest.webmanifest",
+  "webManifestUrl": "https://justaminuteaits.vercel.app/manifest.webmanifest",
   "fallbackType": "customtabs",
   "features": {},
   "alphaDependencies": {
@@ -33,8 +33,8 @@
   "enableSiteSettingsShortcut": true,
   "isChromeOSOnly": false,
   "isMetaQuest": false,
-  "fullScopeUrl": "https://jam.example.com/",
-  "minSdkVersion": 21,
+  "fullScopeUrl": "https://justaminuteaits.vercel.app/",
+  "minSdkVersion": 24,
   "orientation": "portrait-primary",
   "fingerprints": [],
   "additionalTrustedOrigins": [],

@@ -1,7 +1,10 @@
 # Android signing material and build outputs
 *.jks
 *.keystore
+android-keystore
 android-keystore/
+android-keystore.*
+keystore-credentials.txt
 local.properties
 .gradle/
 build/
@@ -10,3 +13,6 @@ app-release-signed.apk
 app-release-bundle.aab
 *.aab
 *.apk
+
+*.log
+*.idsig

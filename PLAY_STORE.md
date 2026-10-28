@@ -11,8 +11,8 @@ build steps are in [`android/README.md`](android/README.md).
 | Package name | `com.aits.jam` |
 | Category | Education |
 | Contact email | `admin@aits-tpt.edu.in` |
-| Privacy policy | `https://YOUR_DOMAIN/privacy` |
-| Website | `https://YOUR_DOMAIN` |
+| Privacy policy | `https://justaminuteaits.vercel.app/privacy` |
+| Website | `https://justaminuteaits.vercel.app` |
 | Ads | No |
 | In-app purchases | No |
 
@@ -115,7 +115,7 @@ permissions unless a future native feature actually needs them.
 
 ### Privacy policy
 
-`https://YOUR_DOMAIN/privacy` must be publicly reachable without login and must
+`https://justaminuteaits.vercel.app/privacy` must be publicly reachable without login and must
 describe collection, use, sharing, retention, deletion, and contact details.
 Update it if the Android app introduces any new data handling.
 
