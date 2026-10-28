@@ -102,9 +102,12 @@ address bar instead of opening the app full-screen.
 ## Operational notes
 
 - Set `NEXT_PUBLIC_APP_URL` in production. It is used for QR codes, email links,
-  and same-origin request checks.
+  and same-origin request checks. On Vercel the app falls back to
+  `VERCEL_PROJECT_PRODUCTION_URL` when the explicit variable is absent.
 - Set `RESEND_API_KEY`, `EMAIL_FROM`, and VAPID keys to enable email and push.
 - Set Upstash credentials for reliable rate limiting across serverless instances.
+- Account deletion requests are submitted from `/delete-account` and reviewed by
+  the department HOD in the **Department Database** tab.
 - `GET /api/health` reports database reachability and which optional integrations
   are configured. It never returns secret values.
 - Rotate the Supabase service-role key and VAPID private key if they are ever

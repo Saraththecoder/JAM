@@ -358,6 +358,13 @@ export default function StudentDashboard() {
             </div>
           </>
         )}
+
+        <div className="mt-8 text-center text-[11px] text-zinc-500 font-semibold">
+          Need to leave JAM?{' '}
+          <Link href="/delete-account" className="underline font-bold text-black">
+            Request account deletion
+          </Link>
+        </div>
       </main>
     </div>
   );

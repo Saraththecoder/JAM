@@ -8,6 +8,7 @@ export type AuditAction =
   | 'letter.rejected'
   | 'user.created'
   | 'user.deleted'
+  | 'account.deletion_requested'
   | 'signature.updated';
 
 interface AuditEntry {

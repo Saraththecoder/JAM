@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { User } from '@supabase/supabase-js';
 import type { ZodType } from 'zod';
 import { createAdminClient, createClientServer } from '@/lib/supabase/server';
+import { getConfiguredAppUrl } from '@/lib/app-url';
 
 type ServerClient = Awaited<ReturnType<typeof createClientServer>>;
 
@@ -64,7 +65,7 @@ export function getClientIp(request: NextRequest): string {
 }
 
 export function getAppUrl(request?: NextRequest): string {
-  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, '');
+  const configured = getConfiguredAppUrl();
   if (configured) return configured;
   if (request) return request.nextUrl.origin.replace(/\/$/, '');
   return 'http://localhost:3000';

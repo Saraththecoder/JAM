@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { logError } from '@/lib/api';
+import { getConfiguredAppUrl } from '@/lib/app-url';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,13 +10,15 @@ export async function GET() {
 
   try {
     const admin = createAdminClient();
-    const [profileCheck, auditCheck] = await Promise.all([
+    const [profileCheck, auditCheck, deletionCheck] = await Promise.all([
       admin.from('profiles').select('is_hod').limit(1),
       admin.from('letter_audit_log').select('id').limit(1),
+      admin.from('account_deletion_requests').select('id').limit(1),
     ]);
     if (profileCheck.error) logError('health.profiles', profileCheck.error);
     if (auditCheck.error) logError('health.audit', auditCheck.error);
-    if (!profileCheck.error && !auditCheck.error) database = 'ok';
+    if (deletionCheck.error) logError('health.deletion-requests', deletionCheck.error);
+    if (!profileCheck.error && !auditCheck.error && !deletionCheck.error) database = 'ok';
   } catch (error) {
     logError('health.database', error);
   }
@@ -33,7 +36,7 @@ export async function GET() {
         rateLimitConfigured: Boolean(
           process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
         ),
-        appUrlConfigured: Boolean(process.env.NEXT_PUBLIC_APP_URL),
+        appUrlConfigured: Boolean(getConfiguredAppUrl()),
       },
     },
     {

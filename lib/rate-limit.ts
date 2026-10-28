@@ -118,6 +118,7 @@ export const createLetterLimiter = createRateLimiter('ratelimit:create-letter', 
 export const createUserLimiter = createRateLimiter('ratelimit:create-user', 10, '60 s');
 export const bulkCreateUsersLimiter = createRateLimiter('ratelimit:bulk-create-users', 3, '60 s');
 export const deleteUserLimiter = createRateLimiter('ratelimit:delete-user', 5, '60 s');
+export const accountDeletionLimiter = createRateLimiter('ratelimit:account-deletion', 3, '1 h');
 export const aiGenerationLimiter = createRateLimiter('ratelimit:ai-generation', 10, '60 s');
 export const uploadSignatureLimiter = createRateLimiter('ratelimit:upload-signature', 10, '60 s');
 export const letterActionLimiter = createRateLimiter('ratelimit:letter-action', 20, '60 s');

@@ -45,8 +45,12 @@ export default function PrivacyPage() {
           <h2 className="font-bold text-black">Retention and deletion</h2>
           <p>
             Letter records and signed PDFs are retained for the period required by the institution.
-            Department administrators can delete accounts and their associated documents. Audit
-            records may be retained after account deletion for accountability.
+            You can request deletion of your account and associated documents from the{' '}
+            <Link href="/delete-account" className="underline font-semibold text-black">
+              account deletion page
+            </Link>
+            . Your department HOD processes the request. Audit records may be retained after
+            account deletion for accountability.
           </p>
         </section>
 

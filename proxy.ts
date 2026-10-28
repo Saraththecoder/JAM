@@ -1,7 +1,16 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { getConfiguredAppUrl } from '@/lib/app-url';
 
-const PUBLIC_PATHS = ['/', '/login', '/register', '/verify', '/privacy', '/.well-known'];
+const PUBLIC_PATHS = [
+  '/',
+  '/login',
+  '/register',
+  '/verify',
+  '/privacy',
+  '/delete-account',
+  '/.well-known',
+];
 const PUBLIC_API_PATHS = ['/api/health', '/api/download-letter'];
 
 function isPublicPath(path: string): boolean {
@@ -51,9 +60,10 @@ export async function proxy(request: NextRequest) {
   if (isApiPath && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
     const origin = request.headers.get('origin');
     let configuredOrigin: string | null = null;
-    if (process.env.NEXT_PUBLIC_APP_URL) {
+    const configuredUrl = getConfiguredAppUrl();
+    if (configuredUrl) {
       try {
-        configuredOrigin = new URL(process.env.NEXT_PUBLIC_APP_URL).origin;
+        configuredOrigin = new URL(configuredUrl).origin;
       } catch {
         configuredOrigin = null;
       }

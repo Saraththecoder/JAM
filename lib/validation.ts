@@ -92,6 +92,10 @@ export const deleteUserSchema = z.object({
   userId: uuidSchema,
 });
 
+export const accountDeletionRequestSchema = z.object({
+  reason: z.string().trim().max(1000, 'Please keep the reason under 1000 characters.').optional(),
+});
+
 export const rollNumberSchema = z
   .string()
   .trim()
@@ -107,6 +111,7 @@ export const facultyEmailSchema = z
 
 export type LetterCreateInput = z.infer<typeof letterCreateSchema>;
 export type CreateUserInput = z.infer<typeof createUserSchema>;
+export type AccountDeletionRequestInput = z.infer<typeof accountDeletionRequestSchema>;
 export type NotifyInput = z.infer<typeof notifySchema>;
 export type AiGenerationInput = z.infer<typeof aiGenerationSchema>;
 export type SignatureUploadInput = z.infer<typeof signatureUploadSchema>;

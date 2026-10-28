@@ -54,6 +54,19 @@ interface DepartmentMember {
   created_at: string;
 }
 
+interface DeletionRequest {
+  id: string;
+  user_id: string;
+  reason: string | null;
+  requested_at: string;
+  profile: {
+    full_name: string;
+    roll_number: string | null;
+    designation: string | null;
+    role: 'student' | 'faculty';
+  } | null;
+}
+
 interface FacultyProfile {
   id: string;
   role: string;
@@ -202,6 +215,8 @@ export default function FacultyDashboard() {
   const [adminActionError, setAdminActionError] = useState<string | null>(null);
   const [adminActionSuccess, setAdminActionSuccess] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [deletionRequests, setDeletionRequests] = useState<DeletionRequest[]>([]);
+  const [loadingDeletionRequests, setLoadingDeletionRequests] = useState(false);
 
   // Bulk CSV Import states
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -288,6 +303,21 @@ export default function FacultyDashboard() {
     }
   };
 
+  const fetchDeletionRequests = async () => {
+    if (!profile?.department_id) return;
+    setLoadingDeletionRequests(true);
+    try {
+      const res = await fetch('/api/admin/deletion-requests', { cache: 'no-store' });
+      const result = (await res.json()) as { error?: string; requests?: DeletionRequest[] };
+      if (!res.ok) throw new Error(result.error || 'Failed to load deletion requests.');
+      setDeletionRequests(result.requests ?? []);
+    } catch (err: unknown) {
+      console.error('Error fetching deletion requests:', err);
+    } finally {
+      setLoadingDeletionRequests(false);
+    }
+  };
+
   const handleDeleteUser = async (targetUserId: string) => {
     if (!confirm('Are you sure you want to delete this account? All associated letter requests and profile data will be permanently removed.')) {
       return;
@@ -305,6 +335,7 @@ export default function FacultyDashboard() {
         throw new Error(result.error || 'Failed to delete user.');
       }
       void fetchDeptProfiles();
+      void fetchDeletionRequests();
     } catch (err: unknown) {
       setAdminActionError(err instanceof Error ? err.message : 'Failed to delete user.');
     } finally {
@@ -728,7 +759,8 @@ export default function FacultyDashboard() {
             <button
               onClick={() => {
                 setActiveTab('database');
-                fetchDeptProfiles();
+                void fetchDeptProfiles();
+                void fetchDeletionRequests();
               }}
               className={`px-4 py-2.5 text-xs font-black rounded-xl border-2 border-black transition-all cursor-pointer ${
                 activeTab === 'database'
@@ -972,6 +1004,55 @@ export default function FacultyDashboard() {
               </div>
             )}
 
+            {(loadingDeletionRequests || deletionRequests.length > 0) && (
+              <section className="paper-card border-2 border-black rounded-2xl bg-neured/20 p-5 space-y-3">
+                <div>
+                  <h2 className="text-lg font-bold text-black">Account deletion requests</h2>
+                  <p className="text-xs text-zinc-650 font-bold mt-0.5">
+                    Review requests from your department. Deleting the account also removes its
+                    letters, signature, and signed PDFs.
+                  </p>
+                </div>
+
+                {loadingDeletionRequests ? (
+                  <div className="flex items-center gap-2 text-xs font-bold text-black">
+                    <RefreshCw className="w-4 h-4 animate-spin" /> Loading requests...
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {deletionRequests.map((request) => (
+                      <div
+                        key={request.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border-2 border-black bg-white p-3"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-extrabold text-black">
+                            {request.profile?.full_name || request.user_id.slice(0, 8)}
+                            {request.profile?.roll_number
+                              ? ` (${request.profile.roll_number})`
+                              : request.profile?.designation
+                                ? ` (${request.profile.designation})`
+                                : ''}
+                          </p>
+                          <p className="text-[11px] text-zinc-600 font-semibold">
+                            Requested {formatDate(request.requested_at)}
+                            {request.reason ? ` — ${request.reason}` : ''}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteUser(request.user_id)}
+                          disabled={actionLoading}
+                          className="shrink-0 px-3 py-1.5 bg-neured text-black border-2 border-black rounded-lg text-xs font-bold shadow-[2px_2px_0px_rgba(0,0,0,1)] hover:translate-x-[-1px] hover:translate-y-[-1px] hover:shadow-[3px_3px_0px_rgba(0,0,0,1)] active:translate-x-0 active:translate-y-0 active:shadow-none transition-all disabled:opacity-60"
+                        >
+                          Delete account
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
             <div className="flex justify-between items-center">
               <div>
                 <h2 className="text-xl font-bold text-black">Department Directory</h2>
@@ -1078,6 +1159,13 @@ export default function FacultyDashboard() {
             )}
           </div>
         )}
+
+        <div className="mt-8 text-center text-[11px] text-zinc-500 font-semibold">
+          Need to leave JAM?{' '}
+          <Link href="/delete-account" className="underline font-bold text-black">
+            Request account deletion
+          </Link>
+        </div>
       </main>
 
       {/* Upload Signature Modal */}

@@ -71,6 +71,7 @@ Declare the data the app actually handles:
 - Digital signature images uploaded by faculty.
 - Signed PDFs and document verification metadata.
 - Authentication identifiers and push subscription endpoints.
+- Account-deletion requests and the optional reason supplied by the user.
 
 State that data is encrypted in transit, is used for app functionality and
 notifications, and is not sold. List Supabase, Resend, Upstash, and OpenRouter as
@@ -78,21 +79,20 @@ service providers where applicable. Do not declare “no data collected.”
 
 ### Account deletion
 
-Google Play requires apps with account creation/login to provide an in-app
-account-deletion option and a web deletion link. JAM currently allows an HOD to
-delete accounts from the faculty dashboard, but that is not a user-facing
-self-service flow.
+JAM provides a user-facing deletion request flow:
 
-Before submitting, choose one of these:
+- Student and faculty dashboards link to `/delete-account`.
+- The page is publicly reachable at
+  `https://justaminuteaits.vercel.app/delete-account`; signing in is required so
+  a request cannot be submitted for someone else's account.
+- The request is stored in `account_deletion_requests` and appears in the HOD's
+  **Department Database** tab.
+- The HOD processes it by deleting the account, which removes the profile,
+  signature, letter requests, and signed PDFs. Audit records may be retained for
+  institutional accountability, as stated in the privacy notice.
 
-1. **Preferred:** Add a “Delete my account” flow in the app that creates a
-   deletion request for the HOD and exposes the same request at a public URL.
-   Document the retention policy for signed letters and audit records.
-2. Add a clear in-app deletion-request action that emails the department office,
-   plus a public web page with the same action. Make sure requests are actually
-   processed within the stated timeframe.
-
-Do not claim that users can delete their own accounts unless that flow exists.
+The HOD must actually process requests. Do not claim instant self-service
+deletion; the current flow is a reviewed request.
 
 ### Content rating
 
@@ -121,16 +121,20 @@ Update it if the Android app introduces any new data handling.
 
 ## Release process
 
-1. Deploy the web app and verify `NEXT_PUBLIC_APP_URL`, `/privacy`,
-   `/manifest.webmanifest`, and `/.well-known/assetlinks.json`.
-2. Build the signed AAB using `android/README.md`.
-3. Upload to **Internal testing** first.
-4. Add the Play App Signing SHA-256 fingerprint to
-   `ANDROID_SHA256_CERT_FINGERPRINTS` and redeploy.
-5. Install the Play-signed build and verify there is no browser address bar.
-6. Complete the store listing, app access, data safety, content rating, and
+1. Apply every file in `supabase/migrations/`, including
+   `20261028000000_production_hardening.sql` and
+   `20261028000001_account_deletion_requests.sql`, then verify `/api/health`
+   returns `200` with `database: "ok"`.
+2. Deploy the web app and verify `NEXT_PUBLIC_APP_URL`, `/privacy`,
+   `/delete-account`, `/manifest.webmanifest`, and `/.well-known/assetlinks.json`.
+3. Build the signed AAB using `android/README.md`.
+4. Upload to **Internal testing** first.
+5. Add the Play App Signing SHA-256 fingerprint to
+   `ANDROID_SHA256_CERT_FINGERPRINTS` (or `android/assetlinks.json`) and redeploy.
+6. Install the Play-signed build and verify there is no browser address bar.
+7. Complete the store listing, app access, data safety, content rating, and
    account-deletion requirements.
-7. Promote to closed testing, then production.
+8. Promote to closed testing, then production.
 
 ## Common rejection reasons
 
