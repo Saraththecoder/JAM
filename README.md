@@ -34,8 +34,9 @@ faculty dashboard, which calls the service-role provisioning route.
    ```
 2. Copy `.env.example` to `.env.local` and fill in the Supabase project values.
 3. Apply the SQL migrations in `supabase/migrations/` in filename order. The
-   final hardening migration is required before running this version of the
-   application.
+   final hardening migration and the account-deletion migration are required
+   before running this version of the application. See
+   [`supabase/README.md`](supabase/README.md) for dashboard and CLI steps.
 4. Start the development server:
    ```bash
    npm run dev
