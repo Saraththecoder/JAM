@@ -43,7 +43,7 @@ The expected healthy response is:
   "status": "ok",
   "checks": {
     "database": "ok",
-    "emailConfigured": true,
+    "emailConfigured": false,
     "pushConfigured": true,
     "rateLimitConfigured": true,
     "appUrlConfigured": true
@@ -51,5 +51,5 @@ The expected healthy response is:
 }
 ```
 
-`emailConfigured` remains `false` until `RESEND_API_KEY` and `EMAIL_FROM` are
-configured in Vercel.
+`emailConfigured` becomes `true` after `RESEND_API_KEY` and `EMAIL_FROM` are
+configured in Vercel. It does not affect the overall health status.
