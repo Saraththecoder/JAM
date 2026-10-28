@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   '/verify',
   '/privacy',
   '/delete-account',
+  '/downloads',
   '/.well-known',
 ];
 const PUBLIC_API_PATHS = ['/api/health', '/api/download-letter'];
